@@ -1,4 +1,5 @@
 const express = require('express');
+const cors = require('cors');
 const port = process.env.PORT || 3000;
 const activitiesRouter = require('./routes/activities');
 const memberRouter = require('./routes/members');
@@ -14,6 +15,7 @@ const swaggerSpec = require('./swagger');
 
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
+app.use(cors());
 app.use(express.json());
 
 app.use('/api/activities', activitiesRouter);

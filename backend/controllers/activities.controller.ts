@@ -2,8 +2,20 @@ const Activity = require('../models/activities.model');
 
 export const getActivities = async (req: any, res: any) => {
     try {
-        const activities = await Activity.getAllActivities();
-        res.json(activities);
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const offset = (page - 1) * limit;
+
+        const activities = await Activity.getAllActivities(limit, offset);
+        const total = await Activity.getTotalActivities();
+
+        res.json({
+            activities,
+            total,
+            page,
+            limit,
+            totalPages: Math.ceil(total / limit)
+        });
         res.status(200);
     } catch (error) {
         res.status(500).json({ error: 'Erreur pour la récupération des activités' });
@@ -64,7 +76,14 @@ export const deleteActivity = async (req: any, res: any) => {
         } else {
             res.status(404).json({ error: 'Activité non trouvée' });
         }
-    } catch (error) {
-        res.status(500).json({ error: 'Erreur pour la suppression de l\'activité' });
+    } catch (error: any) {
+        console.error('Erreur lors de la suppression:', error);
+        if (error.code === '23503') { // Foreign key violation
+            res.status(409).json({
+                error: 'Impossible de supprimer cette activité car elle est liée à des dépenses ou des lots de billets'
+            });
+        } else {
+            res.status(500).json({ error: 'Erreur pour la suppression de l\'activité' });
+        }
     }
 };
