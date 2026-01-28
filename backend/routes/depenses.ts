@@ -1,8 +1,38 @@
 import express from "express"
 import { get } from "node:http";
+import multer from 'multer';
+import path from 'path';
+
 const { addDepense, deleteDepense, getDepense, getDepenses, updateDepense,getSumDepensesByActivity,getSumDepenses } = require("../controllers/depense.controller");
 
 const router = express.Router();
+
+// Configuration de multer pour les uploads
+const storage = multer.diskStorage({
+  destination: (req: any, file: any, cb: any) => {
+    cb(null, 'uploads/depenses/');
+  },
+  filename: (req: any, file: any, cb: any) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({
+  storage: storage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+  fileFilter: (req: any, file: any, cb: any) => {
+    const allowedTypes = /pdf|doc|docx|jpg|jpeg|png/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+
+    if (mimetype && extname) {
+      return cb(null, true);
+    } else {
+      cb(new Error('Format de fichier non autorisé'));
+    }
+  }
+});
 
 /**
  * @swagger
@@ -189,8 +219,8 @@ router.get('/',getDepenses);
 router.get('/:id',getDepense);
 router.get('/activity/sum/:activityId',getSumDepensesByActivity);
 router.get('/sum/all',getSumDepenses);
-router.post('/add',addDepense);
-router.put('/update/:id',updateDepense);
+router.post('/add', upload.single('piece_justificatif'), addDepense);
+router.put('/update/:id', upload.single('piece_justificatif'), updateDepense);
 router.delete('/delete/:id',deleteDepense);
 
 module.exports = router;

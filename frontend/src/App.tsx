@@ -8,6 +8,7 @@ import Quete from './pages/Quete';
 import Dashboard from './pages/Dashboard';
 import Settings from './pages/Settings';
 import About from './pages/About';
+import Depenses from './pages/Depenses';
 
 function App() {
   
@@ -26,6 +27,7 @@ function App() {
             <Route path="/quete" element={<Quete />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/about" element={<About />} />
+            <Route path="/depenses" element={<Depenses />} />
           </Routes>
         </main>
       </div>

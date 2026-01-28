@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import {FaCalendar, FaTicketAlt, FaUsers, FaBullseye,FaHouseUser} from 'react-icons/fa';
+import {FaCalendar, FaTicketAlt, FaUsers, FaBullseye,FaHouseUser, FaMoneyBill,} from 'react-icons/fa';
 
 const Sidebar = () => {
   const location = useLocation();
@@ -10,6 +10,7 @@ const Sidebar = () => {
     { name: 'Billets', path: '/billet', icon: <FaTicketAlt /> },
     { name: 'Membres', path: '/membres', icon: <FaUsers /> },
     { name: 'Quête', path: '/quete', icon: <FaBullseye /> },
+    { name: 'Dépenses', path: '/depenses', icon: <FaMoneyBill /> },
   ];
 
   return (

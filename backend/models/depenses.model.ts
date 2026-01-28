@@ -1,4 +1,3 @@
-import { get } from "node:http";
 
 const db = require("../config/db")
 
@@ -24,19 +23,24 @@ const generateDepenseId = async(): Promise<string> => {
 const addDepense = async(depense: Omit<Depense,'id'>): Promise<Depense> => {
     const id = await generateDepenseId();
     const result = await db.query(
-        'INSERT INTO DEPENSE (DEPENSE_ID, ACTIVITE_ID, NOM_DEPENSE, PIECE_JUSTIFICATIF, DATE_DEPENSE, MONTANT) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+        'INSERT INTO DEPENSE (DEPENSE_ID, ACTIVITE_ID, NOM_DEPENSE, PIECE_JUSTIFICATIF, DATE_DEPENSE, MONTANT) VALUES ($1, $2, $3, $4, $5, $6) RETURNING DEPENSE_ID as id, ACTIVITE_ID as activity_id, NOM_DEPENSE as nom_depense, PIECE_JUSTIFICATIF as piece_justificatif, DATE_DEPENSE as date_depense, MONTANT as montant',
         [id, depense.activity_id, depense.nom_depense, depense.piece_justificatif, depense.date_depense, depense.montant]
     );
     return result.rows[0];
 }
 
 const getAllDepenses = async(): Promise<Depense[]> => {
-    const result = await db.query('SELECT * FROM DEPENSE');
+    const result = await db.query(
+        'SELECT DEPENSE_ID as id, ACTIVITE_ID as activity_id, NOM_DEPENSE as nom_depense, PIECE_JUSTIFICATIF as piece_justificatif, DATE_DEPENSE as date_depense, MONTANT as montant FROM DEPENSE'
+    );
     return result.rows;
 }
 
 const getDepense = async(id: string): Promise<Depense | null> => {
-    const result = await db.query('SELECT * FROM DEPENSE WHERE DEPENSE_ID = $1', [id]);
+    const result = await db.query(
+        'SELECT DEPENSE_ID as id, ACTIVITE_ID as activity_id, NOM_DEPENSE as nom_depense, PIECE_JUSTIFICATIF as piece_justificatif, DATE_DEPENSE as date_depense, MONTANT as montant FROM DEPENSE WHERE DEPENSE_ID = $1',
+        [id]
+    );
     return result.rows[0] || null;
 }
 
@@ -45,14 +49,25 @@ const updateDepense = async(id: string, depense: Partial<Omit<Depense,'id'>>): P
     const fields = [];
     const values = [];
     let index = 1;
+    
+    // Mapper les clés JavaScript vers les colonnes SQL
+    const keyMap: {[key: string]: string} = {
+        'activity_id': 'ACTIVITE_ID',
+        'nom_depense': 'NOM_DEPENSE',
+        'piece_justificatif': 'PIECE_JUSTIFICATIF',
+        'date_depense': 'DATE_DEPENSE',
+        'montant': 'MONTANT'
+    };
+    
     for(const key in depense){
-        fields.push(`${key.toUpperCase()} = $${index}`);
+        const dbColumn = keyMap[key] || key.toUpperCase();
+        fields.push(`${dbColumn} = $${index}`);
         values.push((depense as any)[key]);
         index++;
     }
     values.push(id);
     const result = await db.query(
-        `UPDATE DEPENSE SET ${fields.join(', ')} WHERE DEPENSE_ID = $${index} RETURNING *`,
+        `UPDATE DEPENSE SET ${fields.join(', ')} WHERE DEPENSE_ID = $${index} RETURNING DEPENSE_ID as id, ACTIVITE_ID as activity_id, NOM_DEPENSE as nom_depense, PIECE_JUSTIFICATIF as piece_justificatif, DATE_DEPENSE as date_depense, MONTANT as montant`,
         values
     );
     return result.rows[0] || null;

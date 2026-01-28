@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit} from 'lucide-react';
+import { Plus, Edit, ArrowLeft, Zap, Eye, X, Check} from 'lucide-react';
 
 interface Activity {
   id: number;
@@ -284,7 +284,7 @@ export default function Billet() {
   const activitiesWithLots = activities;
 
   return (
-    <div className="min-h-screen bg-linear-to from-slate-50 to-slate-100 p-8">
+    <div className="min-h-screen bg-linear-to from-slate-50 to-slate-100 pt-20">
       <div className="max-w-6xl mx-auto">
         <div className="mb-8">
           <h1 className="text-4xl font-bold text-slate-900 mb-2">Billets</h1>
@@ -308,7 +308,7 @@ export default function Billet() {
                     setSelectedActivity(activity);
                     fetchLotsForActivity(activity.id);
                   }}
-                  className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition cursor-pointer"
+                  className="bg-white p-6 border-b-blue-800 border-b-8 rounded-lg shadow-md hover:shadow-lg transition cursor-pointer"
                 >
                   <h3 className="text-xl font-semibold">{activity.nom}</h3>
                   <p className="text-slate-600">{activity.description}</p>
@@ -321,9 +321,10 @@ export default function Billet() {
           <div>
             <button
               onClick={() => setSelectedActivity(null)}
-              className="mb-4 px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700"
+              className="mb-4 px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 flex items-center gap-2"
+              title="Retour aux activités"
             >
-              Retour aux activités
+              <ArrowLeft className="w-4 h-4" />
             </button>
             <h2 className="text-2xl font-semibold mb-4">Activité : {selectedActivity.nom}</h2>
 
@@ -333,9 +334,10 @@ export default function Billet() {
                 <div>
                   <button
                     onClick={() => setSelectedLot(null)}
-                    className="mb-4 px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700"
+                    className="mb-4 px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 flex items-center gap-2"
+                    title="Retour aux lots"
                   >
-                    Retour aux lots
+                    <ArrowLeft className="w-4 h-4" />
                   </button>
                   <h4 className="text-lg font-semibold mb-2">{selectedLot.nom_lot_billet}</h4>
                   <p className="text-slate-600 mb-4">{selectedLot.description}</p>
@@ -445,7 +447,8 @@ export default function Billet() {
                                     </div>
                                     <div className="flex items-center gap-2">
                                       {editingBilletId === billet.billet_id ? (
-                                        <div className="relative w-full">
+                                    <div className="flex items-center gap-2 w-full">
+                                        <div className="relative flex-1">
                                           <input
                                             autoFocus
                                             value={editingMemberInput}
@@ -456,7 +459,6 @@ export default function Billet() {
                                                 const typed = editingMemberInput.trim().toLowerCase();
                                                 const matched = members.find(m => `${m.nom_membre} ${m.prenom_membre}`.toLowerCase().includes(typed));
                                                 if (!matched) { alert('Membre non trouvé'); return; }
-                                                // prevent assigning a member who already has a billet in this lot without confirmation
                                                 const existing = selectedLotBillets!.find(b => b.membre_id === matched.membre_id && b.billet_id !== billet.billet_id);
                                                 if (existing) {
                                                   const ok = window.confirm(`Le membre ${matched.nom_membre} ${matched.prenom_membre} est déjà assigné au billet n°${existing.numero}. Continuer ?`);
@@ -478,7 +480,7 @@ export default function Billet() {
                                                 } catch (err) { console.error(err); }
                                               }
                                             }}
-                                            className="w-xl h-10 px-3 py-2 box-border text-sm border rounded"
+                                            className="w-2xl h-10 px-3 py-2 box-border text-sm border rounded"
                                           />
                                           {/* Suggestions */}
                                           {editingMemberInput.trim().length > 0 && (
@@ -489,11 +491,11 @@ export default function Billet() {
                                                   onClick={async (e) => {
                                                     e.stopPropagation();
                                                           // confirm if member already has a billet in this lot
-                                                          const existing = selectedLotBillets!.find(b => b.membre_id === m.membre_id && b.billet_id !== billet.billet_id);
-                                                          if (existing) {
-                                                            const ok = window.confirm(`Le membre ${m.nom_membre} ${m.prenom_membre} est déjà assigné au billet n°${existing.numero}. Continuer ?`);
-                                                            if (!ok) return;
-                                                          }
+                                                          // const existing = selectedLotBillets!.find(b => b.membre_id === m.membre_id && b.billet_id !== billet.billet_id);
+                                                          // if (existing) {
+                                                          //   const ok = window.confirm(`Le membre ${m.nom_membre} ${m.prenom_membre} est déjà assigné au billet n°${existing.numero}. Continuer ?`);
+                                                          //   if (!ok) return;
+                                                          // }
                                                           try {
                                                             const resp = await fetch(`${import.meta.env.VITE_BACKEND_URL}/billets/update/${billet.billet_id}`, {
                                                               method: 'PUT', headers: { 'Content-Type': 'application/json' },
@@ -516,14 +518,24 @@ export default function Billet() {
                                               ))}
                                             </ul>
                                           )}
-                                          <div className="absolute top-0 right-0">
-                                            <button onClick={(e) => { e.stopPropagation(); setEditingBilletId(null); setEditingMemberInput(''); }} className="px-2 py-1 bg-slate-200 rounded text-sm">Annuler</button>
-                                          </div>
+                                        </div>
+                                        <button 
+                                          onClick={(e) => { e.stopPropagation(); setEditingBilletId(null); setEditingMemberInput(''); }} 
+                                          className="p-1 text-slate-400 hover:text-slate-600 transition-colors"
+                                          title="Annuler"
+                                        >
+                                          <X className="w-5 h-5" />
+                                        </button>
+                                    </div>
+                                      ) : billet.membre_id ? (
+                                        // Assigné: afficher juste le bouton modifier
+                                        <div className="cursor-pointer flex items-center justify-center px-2 py-1 rounded hover:bg-slate-50">
+                                          <Edit className="w-4 h-4 text-slate-400 hover:text-slate-600" />
                                         </div>
                                       ) : (
-                                        <div className="cursor-pointer w-full flex items-center justify-between px-2 py-1 rounded hover:bg-slate-50">
-                                          <div className="truncate">{billet.nom_membre} {billet.prenom_membre}</div>
-                                          <Edit className="w-4 h-4 text-slate-400 hover:text-slate-600" />
+                                        // Non assigné: zone vide clickable
+                                        <div className="cursor-pointer w-full px-2 py-1 rounded hover:bg-slate-50 text-slate-400 text-sm">
+                                          Cliquez pour assigner
                                         </div>
                                       )}
                                     </div>
@@ -556,7 +568,7 @@ export default function Billet() {
                                       }}
                                       className="px-2 py-1 bg-blue-600 text-white rounded text-xs"
                                     >
-                                      Marquer payé
+                                      <Check className="w-4 h-4" />
                                     </button>
                                   </div>
                                 </td>
@@ -615,9 +627,10 @@ export default function Billet() {
                   <p className="text-slate-600 mb-4">Aucun lot de billets pour cette activité</p>
                   <button
                     onClick={() => { setCurrentLotToGenerate(null); setShowLotModal(true); }}
-                    className="px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700"
+                    className="px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 flex items-center gap-2"
+                    title="Générer un lot de billets"
                   >
-                    Générer un lot de billets
+                    <Zap className="w-5 h-5" />
                   </button>
                 </div>
               ) : (
@@ -635,17 +648,19 @@ export default function Billet() {
                             {lotBillets.length === 0 && (
                               <button
                                 onClick={(e) => { e.stopPropagation(); setCurrentLotToGenerate(lot); setShowLotModal(true); }}
-                                className="px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm"
+                                className="px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm flex items-center gap-2"
+                                title="Générer billets"
                               >
-                                Générer billets
+                                <Zap className="w-4 h-4" />
                               </button>
                             )}
                             {lotBillets.length > 0 && (
                               <button
                                 onClick={(e) => { e.stopPropagation(); setSelectedLot(lot); fetchBilletsByLot(lot.lot_billet_id); }}
-                                className="px-3 py-2 bg-slate-200 text-slate-800 rounded-md hover:bg-slate-300 text-sm"
+                                className="px-3 py-2 bg-slate-200 text-slate-800 rounded-md hover:bg-slate-300 text-sm flex items-center gap-2"
+                                title="Voir billets"
                               >
-                                Voir billets
+                                <Eye className="w-4 h-4" />
                               </button>
                             )}
                           </div>

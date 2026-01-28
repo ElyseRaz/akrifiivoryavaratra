@@ -29,30 +29,56 @@ const getDepense = async (req: any, res: any) => {
 };
 
 const addDepense = async (req: any, res: any) => {
-    const newDepense = req.body;
     try {
+        // Extraire les données du formulaire (FormData ou JSON)
+        const newDepense = {
+            activity_id: parseInt(req.body.activity_id) || 0,
+            nom_depense: req.body.nom_depense || '',
+            piece_justificatif: req.file ? `depenses/${req.file.filename}` : (req.body.piece_justificatif || ''),
+            date_depense: req.body.date_depense || new Date().toISOString(),
+            montant: parseFloat(req.body.montant) || 0,
+        };
+
+        if (!newDepense.activity_id || !newDepense.nom_depense) {
+            return res.status(400).json({ error: 'activity_id et nom_depense sont requis' });
+        }
+
         const createdDepense = await Depense.addDepense(newDepense);
         res.status(201).json(createdDepense);
     }
     catch (error) {
+        console.error('Erreur addDepense:', error);
         res.status(500).json({ error: 'Erreur pour la création de la dépense' });
-        console.error(error);
     }
 };
 
 const updateDepense = async (req: any, res: any) => {
     const id = req.params.id;
-    const updatedData = req.body;
     try {
+        // Extraire les données du formulaire (FormData ou JSON)
+        const updatedData: any = {
+            activity_id: parseInt(req.body.activity_id) || 0,
+            nom_depense: req.body.nom_depense || '',
+            date_depense: req.body.date_depense,
+            montant: parseFloat(req.body.montant) || 0,
+        };
+
+        // Ajouter le fichier seulement s'il y en a un nouveau
+        if (req.file) {
+            updatedData.piece_justificatif = `depenses/${req.file.filename}`;
+        } else if (req.body.piece_justificatif && typeof req.body.piece_justificatif === 'string') {
+            updatedData.piece_justificatif = req.body.piece_justificatif;
+        }
+
         const updatedDepense = await Depense.updateDepense(id, updatedData);
         if (updatedDepense) {
             res.json(updatedDepense);
             res.status(200);
-        }
-        else {
+        } else {
             res.status(404).json({ error: 'Dépense non trouvée' });
         }
     } catch (error) {
+        console.error('Erreur updateDepense:', error);
         res.status(500).json({ error: 'Erreur pour la mise à jour de la dépense' });
     }
 };
