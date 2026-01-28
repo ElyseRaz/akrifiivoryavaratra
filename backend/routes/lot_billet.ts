@@ -1,6 +1,6 @@
 import express from 'express';
 
-const {addLotBillet, getLotBillets, getLotBillet, updateLotBillet, deleteLotBillet} = require('../controllers/lot_billet.controller');
+const {addLotBillet, getLotBillets, getLotBillet, updateLotBillet, deleteLotBillet, generateBillets, getBilletsByActivite} = require('../controllers/lot_billet.controller');
 
 const router = express.Router();
 
@@ -134,5 +134,59 @@ router.put('/update/:id', updateLotBillet);
  *         description: Erreur serveur
  */
 router.delete('/delete/:id', deleteLotBillet);
+
+/**
+ * @swagger
+ * /api/lot_billet/generate:
+ *   post:
+ *     summary: Générer les billets pour un lot
+ *     tags: ["Lot de Billets"]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               lot_billet_id:
+ *                 type: string
+ *               prix_unitaire:
+ *                 type: number
+ *     responses:
+ *       200:
+ *         description: Billets générés avec succès
+ *       404:
+ *         description: Lot de billet non trouvé
+ *       500:
+ *         description: Erreur serveur
+ */
+router.post('/generate', generateBillets);
+
+/**
+ * @swagger
+ * /api/lot_billet/billets/{activite_id}:
+ *   get:
+ *     summary: Récupérer tous les billets pour une activité
+ *     tags: ["Lot de Billets"]
+ *     parameters:
+ *       - in: path
+ *         name: activite_id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID de l'activité
+ *     responses:
+ *       200:
+ *         description: Liste des billets
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Billet'
+ *       500:
+ *         description: Erreur serveur
+ */
+router.get('/billets/:activite_id', getBilletsByActivite);
 
 module.exports = router;

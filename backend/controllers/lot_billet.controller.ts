@@ -1,4 +1,5 @@
 const LotBillet = require('../models/lot_billet.model');
+const BilletsModel = require('../models/billets.model');
 
 const getLotBillets = async (req: any, res: any) => {
     try {
@@ -47,9 +48,37 @@ const deleteLotBillet = async (req: any, res: any) => {
     }
 };
 
+const generateBillets = async (req: any, res: any) => {
+    try {
+        const { lot_billet_id, prix_unitaire } = req.body;
+        const lotBillet = await LotBillet.getLotBilletById(lot_billet_id);
+        if (!lotBillet) {
+            return res.status(404).json({ error: 'Lot de billet non trouvé' });
+        }
+        await LotBillet.generateBilletsForLot(lotBillet, prix_unitaire);
+        res.status(200).json({ message: 'Billets générés avec succès' });
+    } catch (error) {
+        console.error('Erreur lors de la génération des billets:', error);
+        res.status(500).json({ error: error });
+    }
+};
+
+const getBilletsByActivite = async (req: any, res: any) => {
+    try {
+        const { activite_id } = req.params;
+        const billets = await BilletsModel.getAllBilletsByActivite(parseInt(activite_id));
+        res.status(200).json(billets);
+    } catch (error) {
+        console.error('Erreur lors de la récupération des billets:', error);
+        res.status(500).json({ error: 'Erreur serveur' });
+    }
+};
+
 module.exports = {
     getLotBillets,
     addLotBillet,
     updateLotBillet,
-    deleteLotBillet
+    deleteLotBillet,
+    generateBillets,
+    getBilletsByActivite
 };

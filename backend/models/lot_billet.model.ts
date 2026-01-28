@@ -1,21 +1,18 @@
 import { get } from 'node:http';
 const db = require ('../config/db');
+const { randomUUID } = require('crypto');
 
 export interface LotBillet {
     lot_billet_id: string;
     activite_id: number;
     nom_lot_billet: string;
     description?: string;
+    numero_debut: number;
+    numero_fin: number;
 }
 
 const generateLotBilletId = async (): Promise<string> => {
-    const result = await db.query('SELECT MAX(LOT_BILLET_ID) as max_id FROM LOT_BILLET');
-    const maxId = result.rows[0].max_id;
-    if (!maxId) {
-        return 'LB-001';
-    }
-    const num = parseInt(maxId.split('-')[1]) + 1;
-    return `LB-${num.toString().padStart(3, '0')}`;
+    return require('crypto').randomBytes(16).toString('hex');
 };
 
 const getAllLotBillets = async (): Promise<LotBillet[]> => {
@@ -23,11 +20,16 @@ const getAllLotBillets = async (): Promise<LotBillet[]> => {
     return result.rows;
 }
 
+const getLotBilletById = async (id: string): Promise<LotBillet | null> => {
+    const result = await db.query('SELECT * FROM LOT_BILLET WHERE LOT_BILLET_ID = $1', [id]);
+    return result.rows[0] || null;
+}
+
 const addLotBillet = async (lotBillet: Omit<LotBillet, 'lot_billet_id'>): Promise<LotBillet> => {
     const lot_billet_id = await generateLotBilletId();
     const result = await db.query(
-        'INSERT INTO LOT_BILLET (LOT_BILLET_ID, ACTIVITE_ID, NOM_LOT_BILLET, DESCRIPTION) VALUES ($1, $2, $3, $4) RETURNING *',
-        [lot_billet_id, lotBillet.activite_id, lotBillet.nom_lot_billet, lotBillet.description]
+        'INSERT INTO LOT_BILLET (LOT_BILLET_ID, ACTIVITE_ID, NOM_LOT_BILLET, DESCRIPTION, NUMERO_DEBUT, NUMERO_FIN) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+        [lot_billet_id, lotBillet.activite_id, lotBillet.nom_lot_billet, lotBillet.description, lotBillet.numero_debut, lotBillet.numero_fin]
     );
     return result.rows[0];
 }
@@ -55,9 +57,29 @@ const deleteLotBillet = async (id: string): Promise<boolean> => {
     return result.rowCount > 0;
 }
 
+const generateBilletsForLot = async (lotBillet: LotBillet, prixUnitaire: number): Promise<void> => {
+    const Billet = require('./billets.model');
+    for (let numero = lotBillet.numero_debut; numero <= lotBillet.numero_fin; numero++) {
+        try {
+            await Billet.addBillet({
+                membre_id: undefined, // Pas assigné à un membre
+                lot_billet_id: lotBillet.lot_billet_id,
+                numero,
+                statut: 'disponible',
+                prix_unitaire: prixUnitaire,
+            });
+        } catch (error) {
+            console.error(`Erreur lors de l'ajout du billet numéro ${numero}:`, error);
+            throw error;
+        }
+    }
+}
+
 module.exports = {
     addLotBillet,
     updateLotBillet,
     deleteLotBillet,
-    getAllLotBillets
+    generateBilletsForLot,
+    getAllLotBillets,
+    getLotBilletById
 };

@@ -26,7 +26,7 @@ export default function Activites() {
     if (error) {
       const timer = setTimeout(() => {
         setError('');
-      }, 5000); // 5 secondes
+      }, 5000);
 
       return () => clearTimeout(timer);
     }
@@ -40,7 +40,7 @@ export default function Activites() {
   const fetchActivities = async (page: number = 1) => {
     try {
       setLoading(true);
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/activities?page=${page}&limit=10`);
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/activities`);
       if (!response.ok) throw new Error('Erreur lors de la récupération');
       const data = await response.json();
       setActivities(data.activities);

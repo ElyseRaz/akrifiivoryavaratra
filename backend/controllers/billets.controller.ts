@@ -25,7 +25,7 @@ const addBillet = async (req: any, res: any) => {
         res.status(201).json(newBillet);
     }
     catch (error) {
-        res.status(500).json({ error: 'Erreur serveur' });
+        res.status(500).json({ error: (error as Error).message });
     }
 };
 

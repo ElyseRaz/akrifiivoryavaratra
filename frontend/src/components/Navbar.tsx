@@ -35,7 +35,7 @@ const Navbar: React.FC = () => {
   };
 
   return (
-    <nav className="bg-white shadow-md sticky top-0 z-20">
+    <nav className="fixed top-0 left-64 right-0 bg-white shadow-md z-30">
       <div className="flex justify-between items-center py-3 pr-6 pl-6">
         <div>
           <h1 className="text-xl font-bold text-blue-800">AKRIFI Ivory Avaratra</h1>

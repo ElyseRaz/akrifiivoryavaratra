@@ -1,9 +1,10 @@
 import { get } from 'node:http';
 const db = require('../config/db');
+const { randomUUID } = require('crypto');
 
 export interface Billet{
     billet_id: string;
-    membre_id: string;
+    membre_id?: string;
     lot_billet_id: string;
     numero : number;
     statut ?: string;
@@ -13,31 +14,45 @@ export interface Billet{
 }
 
 const generateBilletId = (lot_billet_id: string, numero: number): string => {
-    return `${lot_billet_id}/BL-${numero.toString().padStart(3, '0')}`;
+    return require('crypto').randomBytes(16).toString('hex');
 };
 
 const getAllBillets = async (): Promise<Billet[]> => {
-    const result = await db.query('SELECT BILLET.*, MEMBRE.NOM_MEMBRE as nom_membre, MEMBRE.PRENOM_MEMBRE as prenom_membre FROM BILLET JOIN MEMBRE ON BILLET.MEMBRE_ID = MEMBRE.MEMBRE_ID');
+    const result = await db.query('SELECT BILLET.*, MEMBRE.NOM_MEMBRE as nom_membre, MEMBRE.PRENOM_MEMBRE as prenom_membre FROM BILLET LEFT JOIN MEMBRE ON BILLET.MEMBRE_ID = MEMBRE.MEMBRE_ID');
     return result.rows;
 };
 
 const getAllBilletsByLot = async (lot_billet_id: string): Promise<Billet[]> => {
-    const result = await db.query('SELECT BILLET.*, MEMBRE.NOM_MEMBRE as nom_membre, MEMBRE.PRENOM_MEMBRE as prenom_membre FROM BILLET JOIN MEMBRE ON BILLET.MEMBRE_ID = MEMBRE.MEMBRE_ID WHERE LOT_BILLET_ID = $1', [lot_billet_id]);
+    const result = await db.query('SELECT BILLET.*, MEMBRE.NOM_MEMBRE as nom_membre, MEMBRE.PRENOM_MEMBRE as prenom_membre FROM BILLET LEFT JOIN MEMBRE ON BILLET.MEMBRE_ID = MEMBRE.MEMBRE_ID WHERE LOT_BILLET_ID = $1', [lot_billet_id]);
+    return result.rows;
+};
+
+const getAllBilletsByActivite = async (activite_id: number): Promise<Billet[]> => {
+    const result = await db.query('SELECT BILLET.*, MEMBRE.NOM_MEMBRE as nom_membre, MEMBRE.PRENOM_MEMBRE as prenom_membre FROM BILLET LEFT JOIN MEMBRE ON BILLET.MEMBRE_ID = MEMBRE.MEMBRE_ID JOIN LOT_BILLET ON BILLET.LOT_BILLET_ID = LOT_BILLET.LOT_BILLET_ID WHERE LOT_BILLET.ACTIVITE_ID = $1', [activite_id]);
     return result.rows;
 };
 
 const addBillet = async (billet: Omit<Billet, 'billet_id'>): Promise<Billet> => {
     const billet_id = generateBilletId(billet.lot_billet_id, billet.numero);
-    const result = await db.query(
-        'INSERT INTO BILLET (BILLET_ID, MEMBRE_ID, LOT_BILLET_ID, NUMERO, STATUT, PRIX_UNITAIRE) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-        [billet_id, billet.membre_id, billet.lot_billet_id, billet.numero, billet.statut, billet.prix_unitaire]
-    );
-    if (result.rows[0]) {
-        // Récupérer avec jointure
-        const selectResult = await db.query('SELECT BILLET.*, MEMBRE.NOM_MEMBRE as nom_membre, MEMBRE.PRENOM_MEMBRE as prenom_membre FROM BILLET JOIN MEMBRE ON BILLET.MEMBRE_ID = MEMBRE.MEMBRE_ID WHERE BILLET_ID = $1', [billet_id]);
-        return selectResult.rows[0];
+    try {
+        const result = await db.query(
+            'INSERT INTO BILLET (BILLET_ID, MEMBRE_ID, LOT_BILLET_ID, NUMERO, STATUT, PRIX_UNITAIRE) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+            [billet_id, billet.membre_id || null, billet.lot_billet_id, billet.numero, billet.statut, billet.prix_unitaire]
+        );
+        if (result.rows[0]) {
+            // Récupérer avec jointure si membre_id existe
+            if (billet.membre_id) {
+                const selectResult = await db.query('SELECT BILLET.*, MEMBRE.NOM_MEMBRE as nom_membre, MEMBRE.PRENOM_MEMBRE as prenom_membre FROM BILLET LEFT JOIN MEMBRE ON BILLET.MEMBRE_ID = MEMBRE.MEMBRE_ID WHERE BILLET_ID = $1', [billet_id]);
+                return selectResult.rows[0];
+            } else {
+                return result.rows[0];
+            }
+        }
+        return result.rows[0];
+    } catch (error) {
+        console.error('Erreur lors de l\'insertion du billet:', billet_id, error);
+        throw error;
     }
-    return result.rows[0];
 };
 
 const updateBillet = async (id: string, billet: Partial<Omit<Billet, 'billet_id'>>): Promise<Billet | null> => {
@@ -90,6 +105,7 @@ module.exports = {
     updateBillet,
     deleteBillet,
     getAllBilletsByLot,
+    getAllBilletsByActivite,
     getSumBilletsByLot,
     getSumBillets
 };

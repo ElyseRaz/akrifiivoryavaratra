@@ -13,7 +13,7 @@ const Sidebar = () => {
   ];
 
   return (
-    <div className="h-screen w-64 bg-blue-800 text-white shadow-lg">
+    <div className="fixed left-0 top-0 h-screen w-64 bg-blue-800 text-white shadow-lg z-40">
       <div className="p-6">
         <div >
             <img src="/logo.png" alt="AKRIFI Logo" className="w-40 h-40 mx-auto mb-4"/>
