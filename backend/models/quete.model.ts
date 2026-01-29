@@ -21,7 +21,7 @@ const generateQueteId = async(): Promise<string> => {
 const addQuete = async(quete: Omit<Quete,'id'>): Promise<Quete> => {
     const id = await generateQueteId();
     const result = await db.query(
-        'INSERT INTO QUETE (QUETE_ID, DATE_QUETE, NOM_DONNATEUR, MONTANT, PIECE_JUSTIFICATIF) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+        'INSERT INTO QUETE (QUETE_ID, DATE_QUETE, NOM_DONNATEUR, MONTANT_QUETE, PIECE_JUSTIFICATIF) VALUES ($1, $2, $3, $4, $5) RETURNING *',
         [id, quete.date_quete, quete.nom_donnateur, quete.montant, quete.piece_justificatif]
     );
     return result.rows[0];
@@ -42,7 +42,12 @@ const updateQuete = async(id: string, quete: Partial<Omit<Quete,'id'>>): Promise
     const values = [];
     let index = 1;
     for(const key in quete){
-        fields.push(`${key.toUpperCase()} = $${index}`);
+        let columnName = key.toUpperCase();
+        // Mapper montant vers MONTANT_QUETE
+        if(key === 'montant') {
+            columnName = 'MONTANT_QUETE';
+        }
+        fields.push(`${columnName} = $${index}`);
         values.push((quete as any)[key]);
         index++;
     }
@@ -61,7 +66,7 @@ const deleteQuete = async(id: string): Promise<boolean> => {
 
 
 const getSumQuetes = async(): Promise<number> => {
-    const result = await db.query('SELECT SUM(MONTANT) as total FROM QUETE');
+    const result = await db.query('SELECT SUM(MONTANT_QUETE) as total FROM QUETE');
     return result.rows[0].total || 0;
 }
 

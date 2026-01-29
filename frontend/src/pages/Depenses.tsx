@@ -32,10 +32,11 @@ export default function Depenses() {
   const [formData, setFormData] = useState({
     activity_id: '',
     nom_depense: '',
-    piece_justificatif: null as File | null,
+    piece_justificatif: null as File | string | null,
     date_depense: new Date().toISOString().split('T')[0],
     montant: 0,
   });
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [depenseToDelete, setDepenseToDelete] = useState<Depense | null>(null);
@@ -140,8 +141,13 @@ export default function Depenses() {
       const requestData = new FormData();
       requestData.append('activity_id', selectedActivity.id.toString());
       requestData.append('nom_depense', formData.nom_depense);
+      // Si un File est sélectionné, l'ajouter; sinon envoyer le nom de fichier existant (string)
       if (formData.piece_justificatif) {
-        requestData.append('piece_justificatif', formData.piece_justificatif);
+        if (typeof formData.piece_justificatif === 'string') {
+          requestData.append('piece_justificatif', formData.piece_justificatif);
+        } else {
+          requestData.append('piece_justificatif', formData.piece_justificatif);
+        }
       }
       requestData.append('date_depense', formData.date_depense);
       requestData.append('montant', formData.montant.toString());
@@ -225,7 +231,7 @@ export default function Depenses() {
     setFormData({
       activity_id: depense.activity_id.toString(),
       nom_depense: depense.nom_depense.trim(),
-      piece_justificatif: null,
+      piece_justificatif: depense.piece_justificatif || null,
       date_depense: depense.date_depense.split('T')[0],
       montant: typeof depense.montant === 'string' ? parseFloat(depense.montant) : depense.montant,
     });
@@ -260,6 +266,23 @@ export default function Depenses() {
     const activityIdStr = activityId.toString();
     const activity = activities.find(a => a.id.toString() === activityIdStr);
     return activity ? activity.nom : activityIdStr;
+  };
+
+  const getFileUrl = (piece: string) => {
+    if (!piece) return '';
+    // Déterminer la base du backend sans le segment '/api' si présent
+    let base = import.meta.env.VITE_BACKEND_URL || '';
+    if (base.endsWith('/api')) base = base.replace(/\/api$/, '');
+    // Si la valeur contient un chemin (ex: depenses/filename), utiliser uploads/<path>
+    if (piece.includes('/')) return `${base}/uploads/${piece}`;
+    // Sinon supposer que le fichier est dans uploads/depenses/
+    return `${base}/uploads/depenses/${piece}`;
+  };
+
+  const isImageFile = (piece: string) => {
+    if (!piece) return false;
+    const name = piece.split('/').pop() || '';
+    return !!name.match(/\.(jpg|jpeg|png|gif|webp)$/i);
   };
 
   const filteredDepenses = depenses.filter(depense => {
@@ -556,17 +579,38 @@ export default function Depenses() {
                   <label className="block text-sm font-medium text-slate-700 mb-1">
                     Pièce Justificative
                   </label>
-                  <div className="relative">
-                    <input
-                      type="file"
-                      onChange={(e) => setFormData({ ...formData, piece_justificatif: e.target.files?.[0] || null })}
-                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                      accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                    />
+                  <div className="flex items-center gap-3">
+                    <div className="text-sm text-slate-600">
+                      {formData.piece_justificatif
+                        ? (typeof formData.piece_justificatif === 'string'
+                          ? formData.piece_justificatif.split('/').pop()
+                          : formData.piece_justificatif.name)
+                        : 'Aucun fichier'}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="px-3 py-1 bg-blue-50 border border-blue-200 text-blue-700 rounded-md text-sm hover:bg-blue-100"
+                    >
+                      Remplacer
+                    </button>
+                    {formData.piece_justificatif && (
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, piece_justificatif: null })}
+                        className="px-3 py-1 bg-red-50 border border-red-200 text-red-700 rounded-md text-sm hover:bg-red-100"
+                      >
+                        Supprimer
+                      </button>
+                    )}
                   </div>
-                  {formData.piece_justificatif && (
-                    <p className="text-xs text-slate-500 mt-1">✓ {formData.piece_justificatif.name}</p>
-                  )}
+                  <input
+                    ref={(el) => (fileInputRef.current = el)}
+                    type="file"
+                    onChange={(e) => setFormData({ ...formData, piece_justificatif: e.target.files?.[0] || null })}
+                    className="hidden"
+                    accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                  />
                 </div>
 
                 <div>
@@ -707,28 +751,23 @@ export default function Depenses() {
 
               {depenseDetails.piece_justificatif && (
                 <div className="mb-6">
-                  <p className="text-sm font-medium text-slate-600 mb-2">Pièce Justificative</p>
-                  <div className="bg-slate-100 rounded-lg p-4">
-                    {depenseDetails.piece_justificatif.match(/\.(jpg|jpeg|png|gif)$/i) ? (
-                      <img
-                        src={`${import.meta.env.VITE_BACKEND_URL.replace('/api', '')}/uploads/${depenseDetails.piece_justificatif.includes('/') ? depenseDetails.piece_justificatif : `depenses/${depenseDetails.piece_justificatif}`}`}
-                        alt="Pièce justificative"
-                        className="max-w-full h-auto rounded-lg"
-                      />
-                    ) : (
-                      <div className="text-center py-8">
-                        <p className="text-slate-600 mb-2">Fichier : {depenseDetails.piece_justificatif}</p>
-                        <a
-                          href={`${import.meta.env.VITE_BACKEND_URL.replace('/api', '')}/uploads/${depenseDetails.piece_justificatif.includes('/') ? depenseDetails.piece_justificatif : `depenses/${depenseDetails.piece_justificatif}`}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-600 hover:text-blue-900 font-semibold"
-                        >
-                          Télécharger le fichier
-                        </a>
-                      </div>
-                    )}
-                  </div>
+                  <p className="text-sm font-medium text-slate-600 mb-3">Pièce Justificative</p>
+                  {isImageFile(depenseDetails.piece_justificatif) ? (
+                    <img
+                      src={getFileUrl(depenseDetails.piece_justificatif)}
+                      alt="Pièce justificative"
+                      className="max-w-full h-auto rounded-lg"
+                    />
+                  ) : (
+                    <a
+                      href={getFileUrl(depenseDetails.piece_justificatif)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 text-blue-600 rounded-lg hover:bg-blue-100 transition"
+                    >
+                      Télécharger le fichier
+                    </a>
+                  )}
                 </div>
               )}
 
@@ -741,8 +780,8 @@ export default function Depenses() {
                 </button>
                 <button
                   onClick={() => {
-                    setShowDetailsModal(false);
                     handleEditDepense(depenseDetails);
+                    setShowDetailsModal(false);
                   }}
                   className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition"
                 >

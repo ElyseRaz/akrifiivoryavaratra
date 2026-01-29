@@ -572,7 +572,7 @@ export default function Billet() {
                                     </button>
                                   </div>
                                 </td>
-                                <td className="px-4 py-2 whitespace-nowrap text-sm text-slate-500">{billet.prix_unitaire} Ar</td>
+                                <td className="px-4 py-2 whitespace-nowrap text-sm text-slate-500">{billet.prix_unitaire} MGA</td>
                               </tr>
                             ))}
                           </tbody>
@@ -690,7 +690,7 @@ export default function Billet() {
                 {currentLotToGenerate ? (
                   <>
                     <div className="mb-4">
-                      <label className="block text-sm font-medium text-slate-700">Prix unitaire (Ariary)</label>
+                      <label className="block text-sm font-medium text-slate-700">Prix unitaire (MGA)</label>
                       <input
                         type="number"
                         value={lotForm.prix_unitaire}
@@ -721,7 +721,7 @@ export default function Billet() {
                       />
                     </div>
                     <div className="mb-4">
-                      <label className="block text-sm font-medium text-slate-700">Prix unitaire (Ariary)</label>
+                      <label className="block text-sm font-medium text-slate-700">Prix unitaire (MGA)</label>
                       <input
                         type="number"
                         value={lotForm.prix_unitaire}

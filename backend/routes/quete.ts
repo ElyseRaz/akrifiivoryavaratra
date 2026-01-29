@@ -1,10 +1,37 @@
 import express from 'express';
+import multer from 'multer';
+import path from 'path';
 
 const {addQuete, getQuetes, getQuete, updateQuete, deleteQuete,getSumQuetes} = require('../controllers/quete.controller');
 
-
-
 const router = express.Router();
+
+// Configuration de multer pour les uploads
+const storage = multer.diskStorage({
+  destination: (req: any, file: any, cb: any) => {
+    cb(null, 'uploads/quetes/');
+  },
+  filename: (req: any, file: any, cb: any) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({
+  storage: storage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+  fileFilter: (req: any, file: any, cb: any) => {
+    const allowedTypes = /pdf|doc|docx|jpg|jpeg|png/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+
+    if (mimetype && extname) {
+      return cb(null, true);
+    } else {
+      cb(new Error('Format de fichier non autorisé'));
+    }
+  }
+});
 
 /**
  * @swagger
@@ -50,6 +77,36 @@ const router = express.Router();
  *                   example: "Erreur pour la récupération des quêtes"
  */
 router.get('/', getQuetes);
+
+/**
+ * @swagger
+ * /api/quete/sum:
+ *   get:
+ *     summary: Récupérer la somme totale des montants des quêtes
+ *     tags: [Quêtes]
+ *     responses:
+ *       200:
+ *         description: Somme totale des quêtes
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 total:
+ *                   type: number
+ *                   example: 1500.75
+ *       500:
+ *         description: Erreur serveur
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   example: "Erreur pour la récupération de la somme des quêtes"
+ */
+router.get('/sum', getSumQuetes);
 
 /**
  * @swagger
@@ -111,38 +168,6 @@ router.get('/', getQuetes);
  *                   example: "Erreur pour la récupération de la quête"
  */
 router.get('/:id', getQuete);
-
-
-
-/**
- * @swagger
- * /api/quete/sum:
- *   get:
- *     summary: Récupérer la somme totale des montants des quêtes
- *     tags: [Quêtes]
- *     responses:
- *       200:
- *         description: Somme totale des quêtes
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 total:
- *                   type: number
- *                   example: 1500.75
- *       500:
- *         description: Erreur serveur
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 error:
- *                   type: string
- *                   example: "Erreur pour la récupération de la somme des quêtes"
- */
-router.get('/sum', getSumQuetes);
 
 /**
  * @swagger
@@ -210,7 +235,7 @@ router.get('/sum', getSumQuetes);
  *                   type: string
  *                   example: "Erreur pour la création de la quête"
  */
-router.post('/add', addQuete);
+router.post('/add', upload.single('piece_justificatif'), addQuete);
 
 /**
  * @swagger
@@ -291,7 +316,7 @@ router.post('/add', addQuete);
  *                   type: string
  *                   example: "Erreur pour la mise à jour de la quête"
  */
-router.put('/update/:id', updateQuete);
+router.put('/update/:id', upload.single('piece_justificatif'), updateQuete);
 
 /**
  * @swagger
