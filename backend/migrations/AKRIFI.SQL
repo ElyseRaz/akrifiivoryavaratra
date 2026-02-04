@@ -53,7 +53,8 @@ CREATE TABLE BILLET
     LOT_BILLET_ID varchar(36) NOT NULL  ,
     NUMERO int4 NOT NULL  ,
     STATUT char(32) NULL  ,
-    PRIX_UNITAIRE int8 NOT NULL  
+    PRIX_UNITAIRE int8 NOT NULL  ,
+    DATE_PAIEMENT date NULL
 ,   CONSTRAINT PK_BILLET PRIMARY KEY (BILLET_ID)
    );
 
@@ -67,6 +68,10 @@ CREATE  INDEX I_FK_BILLET_MEMBRE
 
 CREATE  INDEX I_FK_BILLET_LOT_BILLET
      ON BILLET (LOT_BILLET_ID)
+    ;
+
+CREATE  INDEX IDX_BILLET_DATE_PAIEMENT
+     ON BILLET (DATE_PAIEMENT)
     ;
 
 -- -----------------------------------------------------------------------------
@@ -195,6 +200,35 @@ ALTER TABLE SANS_BILLET ADD
      CONSTRAINT FK_SANS_BILLET_ACTIVITES
           FOREIGN KEY (ACTIVITE_ID)
                REFERENCES ACTIVITES (ACTIVITE_ID) ON DELETE CASCADE ON UPDATE CASCADE;
+
+
+-- Normaliser les valeurs de STATUT corrompues ou mal encodées (ex: 'PayÚ', 'AssignÚ')
+-- Utiliser l'extension unaccent si disponible pour enlever les diacritiques
+CREATE EXTENSION IF NOT EXISTS unaccent;
+
+UPDATE billet
+SET statut = CASE
+  WHEN unaccent(TRIM(statut)) ILIKE '%pay%' THEN 'Payé'
+  WHEN unaccent(TRIM(statut)) ILIKE '%assign%' THEN 'Assigné'
+  ELSE statut
+END
+WHERE TRIM(statut) IS NOT NULL
+  AND (unaccent(TRIM(statut)) ILIKE '%pay%' OR unaccent(TRIM(statut)) ILIKE '%assign%');
+
+-- Remplir DATE_PAIEMENT pour les billets déjà marqués comme payés en utilisant la date de l'activité correspondante (si disponible)
+UPDATE billet b
+SET date_paiement = a.date_activite
+FROM lot_billet l
+JOIN activites a ON a.activite_id = l.activite_id
+WHERE l.lot_billet_id = b.lot_billet_id
+  AND unaccent(TRIM(b.statut)) ILIKE '%pay%'
+  AND b.date_paiement IS NULL
+  AND a.date_activite IS NOT NULL;
+
+-- Pour les billets payés sans date d'activité, mettre la date courante si la date de paiement est encore NULL
+UPDATE billet
+SET date_paiement = CURRENT_DATE
+WHERE unaccent(TRIM(statut)) ILIKE '%pay%' AND date_paiement IS NULL;
 
 
 -- -----------------------------------------------------------------------------

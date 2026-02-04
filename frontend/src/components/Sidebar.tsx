@@ -5,7 +5,7 @@ const Sidebar = () => {
   const location = useLocation();
 
   const menuItems = [
-    { name: 'Tableau de Bord', path: '/dashboard', icon: <FaHouseUser /> },
+    { name: 'Tableau de Bord', path: '/', icon: <FaHouseUser /> },
     { name: 'Activités', path: '/activites', icon: <FaCalendar /> },
     { name: 'Billets', path: '/billet', icon: <FaTicketAlt /> },
     { name: 'Membres', path: '/membres', icon: <FaUsers /> },

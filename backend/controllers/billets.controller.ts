@@ -21,6 +21,18 @@ const getBilletsByLot = async (req: any, res: any) => {
 
 const addBillet = async (req: any, res: any) => {
     try {
+        // Normaliser le statut entré : enlever accents et vérifier si 'pay' ou 'assign' est présent
+        if (req.body.statut) {
+            const normalized = String(req.body.statut || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+            if (normalized.includes('pay')) {
+                req.body.statut = 'Payé';
+                if (!req.body.date_paiement) {
+                    req.body.date_paiement = new Date().toISOString().split('T')[0];
+                }
+            } else if (normalized.includes('assign')) {
+                req.body.statut = 'Assigné';
+            }
+        }
         const newBillet = await Billet.addBillet(req.body);
         res.status(201).json(newBillet);
     }
@@ -31,6 +43,18 @@ const addBillet = async (req: any, res: any) => {
 
 const updateBillet = async (req: any, res: any) => {
     try {
+        // Normaliser le statut : enlever accents et vérifier si 'pay' ou 'assign' est présent
+        if (req.body.statut) {
+            const normalized = String(req.body.statut || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+            if (normalized.includes('pay')) {
+                req.body.statut = 'Payé';
+                if (!req.body.date_paiement) {
+                    req.body.date_paiement = new Date().toISOString().split('T')[0];
+                }
+            } else if (normalized.includes('assign')) {
+                req.body.statut = 'Assigné';
+            }
+        }
         const updatedBillet = await Billet.updateBillet(req.params.id, req.body);   
         if (updatedBillet) {
             res.status(200).json(updatedBillet);

@@ -27,6 +27,7 @@ interface Billet {
   prix_unitaire: number;
   nom_membre: string;
   prenom_membre: string;
+  date_paiement?: string;
 }
 
 interface Member {
@@ -49,6 +50,8 @@ export default function Billet() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('');
 
+  const normalizeStatus = (s?: string) => (s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+
   const getFilteredBillets = () => {
     if (!selectedLotBillets) return [];
     
@@ -62,12 +65,17 @@ export default function Billet() {
       );
     }
     
-    // Filtre par statut
+    // Filtre par statut (utilise la normalisation pour accepter 'PayÚ', 'Payé', 'paye', etc.)
     if (statusFilter) {
       console.log('Filtering by status:', JSON.stringify(statusFilter));
       filtered = filtered.filter(billet => {
-        console.log('Comparing:', JSON.stringify(billet.statut), '===', JSON.stringify(statusFilter), 'Result:', billet.statut === statusFilter);
-        return billet.statut === statusFilter;
+        const bNorm = normalizeStatus(billet.statut);
+        const fNorm = normalizeStatus(statusFilter);
+
+        if (fNorm.includes('pay')) return bNorm.includes('pay');
+        if (fNorm.includes('assign')) return bNorm.includes('assign');
+        // sinon comparer l'égalité normale
+        return bNorm === fNorm;
       });
     }
     
@@ -194,13 +202,14 @@ export default function Billet() {
       const data = await resp.json();
       if (Array.isArray(data)) {
         const normalized = data.map((b: any) => {
-          const trimmedStatut = b?.statut ? String(b.statut).trim().toLowerCase() : b?.statut;
-          // Normaliser les statuts pour correspondre aux valeurs du select
+          const trimmedStatut = b?.statut ? String(b.statut).trim() : b?.statut;
+          // Normaliser les statuts pour correspondre aux valeurs du select (enlever accents et détecter 'pay'/'assign')
+          const t = normalizeStatus(trimmedStatut);
           let normalizedStatut = trimmedStatut;
-          if (trimmedStatut === 'disponible') normalizedStatut = 'disponible';
-          else if (trimmedStatut === 'assigné' || trimmedStatut === 'assigne') normalizedStatut = 'Assigné';
-          else if (trimmedStatut === 'payé' || trimmedStatut === 'paye') normalizedStatut = 'Payé';
-          
+          if (t.includes('dispon')) normalizedStatut = 'disponible';
+          else if (t.includes('assign')) normalizedStatut = 'Assigné';
+          else if (t.includes('pay')) normalizedStatut = 'Payé';
+
           console.log('Original statut:', JSON.stringify(b?.statut), 'Trimmed:', JSON.stringify(trimmedStatut), 'Normalized:', JSON.stringify(normalizedStatut));
           return {
             ...b,
@@ -543,7 +552,7 @@ export default function Billet() {
                                 </td>
                                 <td className="px-4 py-2 whitespace-nowrap text-sm text-slate-500 w-full">
                                   <div className="flex items-center gap-2">
-                                    <span className={`px-2 py-1 rounded text-xs font-medium ${billet.statut === 'Payé' ? 'bg-green-100 text-green-800' : billet.statut === 'Assigné' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-800'}`}>
+                                    <span className={`px-2 py-1 rounded text-xs font-medium ${normalizeStatus(billet.statut).includes('pay') ? 'bg-green-100 text-green-800' : normalizeStatus(billet.statut).includes('assign') ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-800'}`}>
                                       {billet.statut}
                                     </span>
                                     <button

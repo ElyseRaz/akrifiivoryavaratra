@@ -11,6 +11,7 @@ export interface Billet{
     prix_unitaire : number;
     nom_membre?: string;
     prenom_membre?: string;
+    date_paiement?: string;
 }
 
 const generateBilletId = (lot_billet_id: string, numero: number): string => {
@@ -85,19 +86,18 @@ const deleteBillet = async (id: string): Promise<boolean> => {
 
 const getSumBilletsByLot = async (lot_billet_id: string): Promise<number> => {
     const result = await db.query(
-        'SELECT SUM(PRIX_UNITAIRE) as total FROM BILLET WHERE LOT_BILLET_ID = $1 AND STATUT = $2',
-        [lot_billet_id, 'Payé']
+        "SELECT SUM(PRIX_UNITAIRE) as total FROM BILLET WHERE LOT_BILLET_ID = $1 AND unaccent(TRIM(STATUT)) ILIKE '%pay%'",
+        [lot_billet_id]
     );
     return result.rows[0].total || 0;
-}
+} 
 
 const getSumBillets = async (): Promise<number> => {
     const result = await db.query(
-        'SELECT SUM(PRIX_UNITAIRE) as total FROM BILLET WHERE STATUT = $1',
-        ['Payé']
+        "SELECT SUM(PRIX_UNITAIRE) as total FROM BILLET WHERE unaccent(TRIM(STATUT)) ILIKE '%pay%'"
     );
     return result.rows[0].total || 0;
-}
+} 
 
 module.exports = {
     getAllBillets,
