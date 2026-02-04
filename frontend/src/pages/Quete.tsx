@@ -10,10 +10,7 @@ interface Quete {
   piece_justificatif: string;
 }
 
-// Alias pour compatibilité
-interface QueteView extends Quete {
-  id?: string;
-}
+
 
 export default function Quete() {
   const [quetes, setQuetes] = useState<Quete[]>([]);
@@ -35,6 +32,44 @@ export default function Quete() {
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [queteDetails, setQueteDetails] = useState<Quete | null>(null);
 
+  // Onglet actif (Quêtes / Sans Billets)
+  const [activeTab, setActiveTab] = useState<'quetes' | 'sansBillets'>('quetes');
+
+  // États pour Sans Billets
+  interface SansBilletView {
+    sans_billet_id: string;
+    montant: number;
+    membre_id: string;
+    activite_id: number;
+    date_don: string;
+    nom_membre?: string;
+    prenom_membre?: string;
+  }
+
+  const [sansBillets, setSansBillets] = useState<SansBilletView[]>([]);
+  const [sansLoading, setSansLoading] = useState(true);
+  const [sansError, setSansError] = useState('');
+  const [sansSearchTerm, setSansSearchTerm] = useState('');
+  const [showSansModal, setShowSansModal] = useState(false);
+  const [editingSansId, setEditingSansId] = useState<string | null>(null);
+  const [sansFormData, setSansFormData] = useState({
+    montant: 0,
+    membre_id: '',
+    activite_id: '' as number | string,
+    date_don: new Date().toISOString().split('T')[0]
+  });
+  const [showSansDeleteModal, setShowSansDeleteModal] = useState(false);
+  const [sansToDelete, setSansToDelete] = useState<SansBilletView | null>(null);
+  const [totalSans, setTotalSans] = useState(0);
+
+  // Données auxiliaires
+  const [members, setMembers] = useState<any[]>([]);
+  const [activities, setActivities] = useState<any[]>([]);
+
+  // Pour l'autocomplete membre
+  const [memberQuery, setMemberQuery] = useState('');
+  const [showMemberSuggestions, setShowMemberSuggestions] = useState(false);
+
   // Effacer l'erreur automatiquement après 5 secondes
   useEffect(() => {
     if (error) {
@@ -45,6 +80,14 @@ export default function Quete() {
       return () => clearTimeout(timer);
     }
   }, [error]);
+
+  // Effacer les erreurs spécifiques aux sans billets
+  useEffect(() => {
+    if (sansError) {
+      const timer = setTimeout(() => setSansError(''), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [sansError]);
 
   // Charger les quêtes au montage du composant
   useEffect(() => {
@@ -79,6 +122,170 @@ export default function Quete() {
     } catch (err) {
       console.error('Erreur lors de la récupération du total', err);
     }
+  };
+
+  // -------------------- Sans Billets - API & helpers --------------------
+  const fetchSansBillets = async () => {
+    try {
+      setSansLoading(true);
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/sans_billets`);
+      if (!response.ok) throw new Error('Erreur lors de la récupération des sans billets');
+      const data = await response.json();
+      setSansBillets(data);
+      setSansError('');
+    } catch (err) {
+      console.error(err);
+      setSansError('Impossible de charger les sans billets');
+    } finally {
+      setSansLoading(false);
+    }
+  };
+
+  const fetchTotalSans = async () => {
+    try {
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/sans_billets`);
+      if (response.ok) {
+        const data = await response.json();
+        const total = data.reduce((acc: number, item: any) => acc + (parseFloat(item.montant) || 0), 0);
+        setTotalSans(total);
+      }
+    } catch (err) {
+      console.error('Erreur lors de la récupération du total des sans billets', err);
+    }
+  };
+
+  const fetchMembers = async () => {
+    try {
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/members`);
+      if (!response.ok) return;
+      const data = await response.json();
+      setMembers(data);
+    } catch (err) {
+      console.error('Erreur lors de la récupération des membres', err);
+    }
+  };
+
+  const fetchActivities = async () => {
+    try {
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/activities`);
+      if (!response.ok) return;
+      const data = await response.json();
+      // L'API retourne { activities, total, ... } — sécuriser pour ne garder que le tableau
+      setActivities(Array.isArray(data) ? data : (data.activities || []));
+    } catch (err) {
+      console.error('Erreur lors de la récupération des activités', err);
+    }
+  };
+
+  // Suggestions membre (autocomplete)
+  const memberSuggestions = members
+    .filter((m) => {
+      const q = memberQuery.toLowerCase().trim();
+      if (!q) return true; // quand focus sans filtre, montrer tout (limité à slice dans l'UI)
+      const full = `${m.nom_membre} ${m.prenom_membre}`.toLowerCase();
+      return full.includes(q) || (m.membre_id || '').toLowerCase().includes(q);
+    })
+    .slice(0, 12);
+
+  useEffect(() => {
+    // Charger les données auxiliaires
+    fetchMembers();
+    fetchActivities();
+  }, []);
+
+  const handleAddSansBillet = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // Si l'utilisateur a tapé un nom mais n'a pas cliqué sur la suggestion, tenter de résoudre
+    let resolvedMembreId = sansFormData.membre_id;
+    if (!resolvedMembreId && memberQuery) {
+      const matched = members.find((m) => (`${m.nom_membre} ${m.prenom_membre}`).toLowerCase() === memberQuery.trim().toLowerCase() || (m.membre_id || '').toLowerCase() === memberQuery.trim().toLowerCase());
+      if (matched) resolvedMembreId = matched.membre_id;
+      else {
+        setSansError('Membre invalide. Veuillez sélectionner une suggestion.');
+        return;
+      }
+    }
+
+    if (!sansFormData.montant || !resolvedMembreId) {
+      setSansError('Veuillez remplir tous les champs');
+      return;
+    }
+
+    try {
+      const endpoint = editingSansId
+        ? `${import.meta.env.VITE_BACKEND_URL}/sans_billets/update/${editingSansId}`
+        : `${import.meta.env.VITE_BACKEND_URL}/sans_billets/add`;
+      const method = editingSansId ? 'PUT' : 'POST';
+
+      const body = {
+        montant: parseFloat(sansFormData.montant as any) || 0,
+        membre_id: resolvedMembreId,
+        activite_id: sansFormData.activite_id || null,
+        date_don: sansFormData.date_don,
+      };
+
+      const response = await fetch(endpoint, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) throw new Error('Erreur lors de l\'opération');
+
+      setSansFormData({ montant: 0, membre_id: '', activite_id: '', date_don: new Date().toISOString().split('T')[0] });
+      setMemberQuery('');
+      setEditingSansId(null);
+      setShowSansModal(false);
+      await fetchSansBillets();
+      await fetchTotalSans();
+    } catch (err) {
+      console.error(err);
+      setSansError('Erreur lors de l\'ajout/modification');
+    }
+  };
+
+  const handleEditSans = (item: SansBilletView) => {
+    setSansFormData({
+      montant: typeof item.montant === 'string' ? parseFloat(item.montant) : item.montant,
+      membre_id: item.membre_id,
+      activite_id: item.activite_id || '',
+      date_don: (item.date_don || '').split('T')[0] || new Date().toISOString().split('T')[0],
+    });
+    const found = members.find(m => m.membre_id === item.membre_id);
+    if (found) setMemberQuery(`${found.nom_membre} ${found.prenom_membre}`);
+    else setMemberQuery(item.membre_id || '');
+    setEditingSansId(item.sans_billet_id);
+    setShowSansModal(true);
+  };
+
+  const handleDeleteSans = (item: SansBilletView) => {
+    setSansToDelete(item);
+    setShowSansDeleteModal(true);
+  };
+
+  const confirmDeleteSans = async () => {
+    if (!sansToDelete) return;
+    try {
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/sans_billets/delete/${sansToDelete.sans_billet_id}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) throw new Error('Erreur lors de la suppression');
+      setShowSansDeleteModal(false);
+      setSansToDelete(null);
+      await fetchSansBillets();
+      await fetchTotalSans();
+    } catch (err) {
+      console.error(err);
+      setSansError('Erreur lors de la suppression');
+      setShowSansDeleteModal(false);
+      setSansToDelete(null);
+    }
+  };
+
+  const cancelDeleteSans = () => {
+    setShowSansDeleteModal(false);
+    setSansToDelete(null);
   };
 
   const handleAddQuete = async (e: React.FormEvent) => {
@@ -232,8 +439,28 @@ export default function Quete() {
           <p className="text-slate-600">Gérez les quêtes et les collectes de l'AKRIFI</p>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        {/* Tabs / Splitter */}
+        <div className="mb-6 flex items-center gap-3">
+          <button
+            onClick={() => setActiveTab('quetes')}
+            className={`px-4 py-2 rounded-md font-medium transition ${activeTab === 'quetes' ? 'bg-blue-600 text-white' : 'bg-white border border-slate-200 text-slate-700'}`}>
+            Quêtes
+          </button>
+          <button
+            onClick={() => {
+              setActiveTab('sansBillets');
+              fetchSansBillets();
+              fetchTotalSans();
+            }}
+            className={`px-4 py-2 rounded-md font-medium transition ${activeTab === 'sansBillets' ? 'bg-blue-600 text-white' : 'bg-white border border-slate-200 text-slate-700'}`}>
+            Sans Billets
+          </button>
+        </div>
+
+        {activeTab === 'quetes' ? (
+          <>
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
           <div className="bg-white rounded-lg shadow-md p-6">
             <div className="flex items-center justify-between">
               <div>
@@ -292,7 +519,7 @@ export default function Quete() {
               setFormData({
                 date_quete: new Date().toISOString().split('T')[0],
                 nom_donnateur: '',
-                montant: 0,
+                montant_quete: 0,
                 piece_justificatif: null,
               });
               setEditingId(null);
@@ -460,7 +687,7 @@ export default function Quete() {
                     )}
                   </div>
                   <input
-                    ref={(el) => (fileInputRef.current = el)}
+                    ref={(el) => { fileInputRef.current = el }}
                     type="file"
                     onChange={(e) => setFormData({ ...formData, piece_justificatif: e.target.files?.[0] || null })}
                     className="hidden"
@@ -599,6 +826,207 @@ export default function Quete() {
               </div>
             </div>
           </div>
+        )}
+          </>
+        ) : null}
+
+        {/* -------------------- Sans Billets Panel -------------------- */}
+        {activeTab === 'sansBillets' && (
+          <>
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+              <div className="bg-white rounded-lg shadow-md p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-slate-600 text-sm font-medium">Montant total sans billets</p>
+                    <p className="text-2xl font-bold text-slate-900 mt-2">{formatCurrency(totalSans)}</p>
+                  </div>
+                  <div className="bg-blue-100 rounded-full p-3">
+                    <TrendingUp className="w-6 h-6 text-blue-600" />
+                  </div>
+                </div>
+              </div>
+              <div className="bg-white rounded-lg shadow-md p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-slate-600 text-sm font-medium">Nombre de sans billets</p>
+                    <p className="text-2xl font-bold text-slate-900 mt-2">{sansBillets.length}</p>
+                  </div>
+                  <div className="bg-green-100 rounded-full p-3">
+                    <TrendingUp className="w-6 h-6 text-green-600" />
+                  </div>
+                </div>
+              </div>
+              <div className="bg-white rounded-lg shadow-md p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-slate-600 text-sm font-medium">Moyenne</p>
+                    <p className="text-2xl font-bold text-slate-900 mt-2">{sansBillets.length > 0 ? formatCurrency(totalSans / sansBillets.length) : formatCurrency(0)}</p>
+                  </div>
+                  <div className="bg-purple-100 rounded-full p-3">
+                    <TrendingUp className="w-6 h-6 text-purple-600" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Search & Add */}
+            <div className="mb-8 flex gap-4">
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-3 text-slate-400 w-5 h-5" />
+                <input
+                  type="text"
+                  placeholder="Rechercher un sans billet..."
+                  value={sansSearchTerm}
+                  onChange={(e) => setSansSearchTerm(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                />
+              </div>
+              <button
+                onClick={() => {
+                  setSansFormData({ montant: 0, membre_id: '', activite_id: '', date_don: new Date().toISOString().split('T')[0] });
+                  setEditingSansId(null);
+                  setShowSansModal(true);
+                }}
+                className="px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition flex items-center gap-2"
+              >
+                <Plus className="w-5 h-5" />
+                Nouveau Sans Billet
+              </button>
+            </div>
+
+            {/* Error */}
+            {sansError && (
+              <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg">{sansError}</div>
+            )}
+
+            {/* List */}
+            {sansLoading ? (
+              <div className="text-center py-12"><p className="text-slate-600">Chargement des sans billets...</p></div>
+            ) : sansBillets.filter(sb => {
+              const name = ((sb.nom_membre || '') + ' ' + (sb.prenom_membre || '')).toLowerCase();
+              return (name.includes(sansSearchTerm.toLowerCase()) || (sb.sans_billet_id || '').toLowerCase().includes(sansSearchTerm.toLowerCase()));
+            }).length === 0 ? (
+              <div className="text-center py-12"><p className="text-slate-600 mb-4">Aucun sans billet trouvé</p></div>
+            ) : (
+              <div className="bg-white rounded-lg shadow-md overflow-hidden">
+                <table className="w-full">
+                  <thead className="bg-slate-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">Membre</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">Date</th>
+                      <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">Montant</th>
+                      <th className="px-6 py-3 text-right text-sm font-semibold text-slate-900">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-slate-200">
+                    {sansBillets.filter(sb => {
+                      const name = ((sb.nom_membre || '') + ' ' + (sb.prenom_membre || '')).toLowerCase();
+                      return (name.includes(sansSearchTerm.toLowerCase()) || (sb.sans_billet_id || '').toLowerCase().includes(sansSearchTerm.toLowerCase()));
+                    }).map(sb => (
+                      <tr key={sb.sans_billet_id} className="hover:bg-slate-50 transition">
+                        <td className="px-6 py-4 text-sm text-slate-900">{(sb.nom_membre ? `${sb.nom_membre} ${sb.prenom_membre}` : sb.membre_id)}</td>
+                        <td className="px-6 py-4 text-sm text-slate-600">{new Date(sb.date_don).toLocaleDateString('fr-FR')}</td>
+                        <td className="px-6 py-4 text-sm font-semibold text-green-600">{formatCurrency(typeof sb.montant === 'string' ? parseFloat(sb.montant) : sb.montant)}</td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex justify-end gap-2">
+                            <button onClick={() => handleEditSans(sb)} className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg transition" title="Modifier"><Edit2 className="w-4 h-4" /></button>
+                            <button onClick={() => handleDeleteSans(sb)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition" title="Supprimer"><Trash2 className="w-4 h-4" /></button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Modal Add/Edit Sans Billet */}
+            {showSansModal && (
+              <div className="fixed inset-0 bg-transparent bg-opacity-30 backdrop-blur-md flex items-center justify-center p-4 z-50">
+                <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-2xl font-bold text-slate-900">{editingSansId ? 'Modifier sans billet' : 'Nouveau sans billet'}</h2>
+                    <button onClick={() => setShowSansModal(false)} className="text-slate-400 hover:text-slate-600"><X className="w-6 h-6" /></button>
+                  </div>
+
+                  <form onSubmit={handleAddSansBillet} className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">Date du don</label>
+                      <input type="date" value={sansFormData.date_don} onChange={(e) => setSansFormData({ ...sansFormData, date_don: e.target.value })} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">Membre</label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={memberQuery}
+                        onChange={(e) => { setMemberQuery(e.target.value); setSansFormData({ ...sansFormData, membre_id: '' }); setShowMemberSuggestions(true); }}
+                        onFocus={() => setShowMemberSuggestions(true)}
+                        onBlur={() => setTimeout(() => setShowMemberSuggestions(false), 150)}
+                        placeholder="Tapez le nom du membre..."
+                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      />
+
+                      {showMemberSuggestions && memberSuggestions.length > 0 && (
+                        <ul className="absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded shadow max-h-48 overflow-auto z-50">
+                          {memberSuggestions.map(m => (
+                            <li
+                              key={m.membre_id}
+                              onMouseDown={() => { setSansFormData({ ...sansFormData, membre_id: m.membre_id }); setMemberQuery(`${m.nom_membre} ${m.prenom_membre}`); setShowMemberSuggestions(false); }}
+                              className="px-3 py-2 hover:bg-slate-100 cursor-pointer"
+                            >
+                              {m.nom_membre} {m.prenom_membre}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">Montant (MGA)</label>
+                      <input type="number" step="0.01" min="0" value={sansFormData.montant as any} onChange={(e) => setSansFormData({ ...sansFormData, montant: parseFloat(e.target.value) || 0 })} className="w-full px-4 py-2 border border-slate-300 rounded-lg" required />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">Activité (optionnel)</label>
+                      <select value={sansFormData.activite_id as any} onChange={(e) => setSansFormData({ ...sansFormData, activite_id: e.target.value })} className="w-full px-4 py-2 border border-slate-300 rounded-lg">
+                        <option value="">-- Aucune --</option>
+                        {activities.map(a => <option key={a.id} value={a.id}>{a.nom}</option>)}
+                      </select>
+                    </div>
+
+                    <div className="flex gap-3 pt-4">
+                      <button type="button" onClick={() => setShowSansModal(false)} className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition font-medium">Annuler</button>
+                      <button type="submit" className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium">{editingSansId ? 'Modifier' : 'Ajouter'}</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+
+            {/* Modal Delete Sans Billet */}
+            {showSansDeleteModal && sansToDelete && (
+              <div className="fixed inset-0 bg-transparent bg-opacity-30 backdrop-blur-xl flex items-center justify-center p-4 z-50">
+                <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6">
+                  <div className="text-center">
+                    <div className="mx-auto w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mb-4">
+                      <AlertCircle className="w-6 h-6 text-red-600" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-slate-900 mb-2">Supprimer le sans billet</h3>
+                    <p className="text-slate-600 mb-6">Êtes-vous sûr de vouloir supprimer le sans billet {sansToDelete.sans_billet_id} ? Cette action est irréversible.</p>
+                    <div className="flex gap-3">
+                      <button onClick={cancelDeleteSans} className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition font-medium">Annuler</button>
+                      <button onClick={confirmDeleteSans} className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition font-medium">Supprimer</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
