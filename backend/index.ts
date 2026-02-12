@@ -9,6 +9,7 @@ const lotBilletRouter = require('./routes/lot_billet');
 const billetsRouter = require('./routes/billets');
 const sansBilletRouter = require('./routes/sans_billet');
 const utilisateursRouter = require('./routes/utilisateurs');
+const userSettingsRouter = require('./routes/userSettings');
 const app = express();
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./swagger');
@@ -27,6 +28,7 @@ app.use('/api/lot_billet', lotBilletRouter);
 app.use('/api/billets', billetsRouter);
 app.use('/api/sans_billets', sansBilletRouter);
 app.use('/api/utilisateurs', utilisateursRouter);
+app.use('/api/user', userSettingsRouter);
 
 app.listen(5000, () => {
   console.log("Server running on http://localhost:5000");

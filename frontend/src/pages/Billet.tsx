@@ -1,6 +1,5 @@
-
-import React, { useState, useEffect } from 'react';
-import { Plus, Edit, ArrowLeft, Zap, Eye, X, Check} from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Plus, Edit, ArrowLeft, Zap, Eye, X, Check, Search } from 'lucide-react';
 
 interface Activity {
   id: number;
@@ -20,13 +19,13 @@ interface LotBillet {
 
 interface Billet {
   billet_id: string;
-  membre_id: string;
+  membre_id: string | null;
   lot_billet_id: string;
   numero: number;
   statut: string;
   prix_unitaire: number;
-  nom_membre: string;
-  prenom_membre: string;
+  nom_membre?: string;
+  prenom_membre?: string;
   date_paiement?: string;
 }
 
@@ -41,55 +40,16 @@ export default function Billet() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
   const [lots, setLots] = useState<LotBillet[]>([]);
+  const [allLots, setAllLots] = useState<LotBillet[]>([]);
   const [billets, setBillets] = useState<Billet[]>([]);
   const [selectedLot, setSelectedLot] = useState<LotBillet | null>(null);
-  // const [lotBilletsMap, setLotBilletsMap] = useState<Record<string, Billet[]>>({});
   const [selectedLotBillets, setSelectedLotBillets] = useState<Billet[] | null>(null);
+  
   const [currentPage, setCurrentPage] = useState(0);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [itemsPerPage,] = useState(10);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('');
-
-  const normalizeStatus = (s?: string) => (s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
-
-  const getFilteredBillets = () => {
-    if (!selectedLotBillets) return [];
-    
-    let filtered = selectedLotBillets;
-    
-    // Filtre par terme de recherche
-    if (searchTerm.trim()) {
-      filtered = filtered.filter(billet => 
-        billet.numero.toString().includes(searchTerm) || 
-        `${billet.nom_membre || ''} ${billet.prenom_membre || ''}`.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-    
-    // Filtre par statut (utilise la normalisation pour accepter 'PayÚ', 'Payé', 'paye', etc.)
-    if (statusFilter) {
-      console.log('Filtering by status:', JSON.stringify(statusFilter));
-      filtered = filtered.filter(billet => {
-        const bNorm = normalizeStatus(billet.statut);
-        const fNorm = normalizeStatus(statusFilter);
-
-        if (fNorm.includes('pay')) return bNorm.includes('pay');
-        if (fNorm.includes('assign')) return bNorm.includes('assign');
-        // sinon comparer l'égalité normale
-        return bNorm === fNorm;
-      });
-    }
-    
-    return filtered;
-  };
-
-  const getCurrentPageBillets = () => {
-    const filtered = getFilteredBillets();
-    const startIndex = currentPage * itemsPerPage;
-    const endIndex = startIndex + itemsPerPage;
-    return filtered.slice(startIndex, endIndex);
-  };
-
-  const totalPages = Math.ceil(getFilteredBillets().length / itemsPerPage);
+  
   const [editingBilletId, setEditingBilletId] = useState<string | null>(null);
   const [editingMemberInput, setEditingMemberInput] = useState<string>('');
   const [members, setMembers] = useState<Member[]>([]);
@@ -99,689 +59,437 @@ export default function Billet() {
   const [lotForm, setLotForm] = useState({ nom_lot_billet: '', description: '', prix_unitaire: 0, numero_debut: 1, numero_fin: 100 });
   const [currentLotToGenerate, setCurrentLotToGenerate] = useState<LotBillet | null>(null);
 
-  const [allLots, setAllLots] = useState<LotBillet[]>([]);
+  const normalizeStatus = (s?: string) => (s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+
+  // Initialisation
+  useEffect(() => {
+    const initData = async () => {
+      try {
+        await Promise.all([fetchActivities(), fetchMembers(), fetchAllLots()]);
+      } catch (err) {
+        setError("Erreur lors du chargement initial");
+      }
+    };
+    initData();
+  }, []);
 
   const fetchAllLots = async () => {
     try {
       const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/lot_billet`);
-      if (!response.ok) throw new Error('Erreur lors de la récupération des lots');
       const data = await response.json();
       if (Array.isArray(data)) {
-        const normalized = data.map((l: any) => ({
-          ...l,
-          lot_billet_id: l?.lot_billet_id ? String(l.lot_billet_id).trim() : String(l.lot_billet_id)
-        }));
-        setAllLots(normalized);
-      } else {
-        setError('Données des lots invalides');
+        setAllLots(data.map((l: any) => ({ ...l, lot_billet_id: String(l.lot_billet_id).trim() })));
       }
-    } catch (err) {
-      console.error(err);
-    }
+    } catch (err) { console.error(err); }
   };
 
   const fetchActivities = async () => {
     try {
       const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/activities`);
-      if (!response.ok) throw new Error('Erreur lors de la récupération des activités');
       const data = await response.json();
-      const activitiesArray = data.activities || data;
-      if (Array.isArray(activitiesArray)) {
-        setActivities(activitiesArray);
-      } else {
-        setError('Données des activités invalides');
-      }
-    } catch (err) {
-      setError('Impossible de charger les activités');
-      console.error(err);
-    }
+      setActivities(data.activities || data);
+    } catch (err) { setError('Impossible de charger les activités'); }
   };
 
   const fetchMembers = async () => {
     try {
       const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/members`);
-      if (!response.ok) throw new Error('Erreur lors de la récupération des membres');
       const data = await response.json();
-      if (Array.isArray(data)) {
-        setMembers(data);
-      } else {
-        setError('Données des membres invalides');
-      }
-    } catch (err) {
-      setError('Impossible de charger les membres');
-      console.error(err);
-    }
+      setMembers(data);
+    } catch (err) { console.error(err); }
   };
-
-  useEffect(() => {
-    fetchActivities();
-    fetchMembers();
-    fetchAllLots();
-  }, []);
 
   const fetchLotsForActivity = async (activiteId: number) => {
-    console.log('activiteId:', activiteId);
-    console.log('allLots:', allLots);
-    const filteredLots = allLots.filter((lot: LotBillet) => {
-      console.log('lot.activite_id:', lot.activite_id, 'type:', typeof lot.activite_id);
-      return Number(lot.activite_id) === Number(activiteId);
-    });
-    console.log('filteredLots:', filteredLots);
+    const filteredLots = allLots.filter((lot) => Number(lot.activite_id) === Number(activiteId));
     setLots(filteredLots);
-    await fetchBilletsForActivity(activiteId);
-  };
-
-  const fetchBilletsForActivity = async (activiteId: number) => {
+    // Optionnel : charger tous les billets de l'activité pour l'affichage des badges
     try {
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/lot_billet/billets/${activiteId}`);
-      if (!response.ok) throw new Error('Erreur lors de la récupération des billets');
-      const data = await response.json();
-      if (Array.isArray(data)) {
-        const normalized = data.map((b: any) => {
-          const trimmedStatut = b?.statut ? String(b.statut).trim() : b?.statut;
-          return {
-            ...b,
-            lot_billet_id: b?.lot_billet_id ? String(b.lot_billet_id).trim() : String(b.lot_billet_id),
-            statut: trimmedStatut
-          };
-        });
-        setBillets(normalized);
-      } else {
-        setError('Données des billets invalides');
-      }
-    } catch (err) {
-      setError('Impossible de charger les billets');
-      console.error(err);
-    }
+        const resp = await fetch(`${import.meta.env.VITE_BACKEND_URL}/lot_billet/billets/${activiteId}`);
+        const data = await resp.json();
+        setBillets(data);
+    } catch (e) { console.error(e); }
   };
 
   const fetchBilletsByLot = async (lotId: string) => {
     try {
+      setLoading(true);
       const resp = await fetch(`${import.meta.env.VITE_BACKEND_URL}/billets/lot/${lotId}`);
-      if (!resp.ok) throw new Error('Erreur lors de la récupération des billets du lot');
       const data = await resp.json();
       if (Array.isArray(data)) {
         const normalized = data.map((b: any) => {
-          const trimmedStatut = b?.statut ? String(b.statut).trim() : b?.statut;
-          // Normaliser les statuts pour correspondre aux valeurs du select (enlever accents et détecter 'pay'/'assign')
-          const t = normalizeStatus(trimmedStatut);
-          let normalizedStatut = trimmedStatut;
-          if (t.includes('dispon')) normalizedStatut = 'disponible';
+          const t = normalizeStatus(b.statut);
+          let normalizedStatut = b.statut;
+          if (t.includes('dispon')) normalizedStatut = 'Disponible';
           else if (t.includes('assign')) normalizedStatut = 'Assigné';
           else if (t.includes('pay')) normalizedStatut = 'Payé';
-
-          console.log('Original statut:', JSON.stringify(b?.statut), 'Trimmed:', JSON.stringify(trimmedStatut), 'Normalized:', JSON.stringify(normalizedStatut));
-          return {
-            ...b,
-            lot_billet_id: b?.lot_billet_id ? String(b.lot_billet_id).trim() : String(b.lot_billet_id),
-            statut: normalizedStatut
-          };
+          return { ...b, lot_billet_id: String(b.lot_billet_id).trim(), statut: normalizedStatut };
         });
         setSelectedLotBillets(normalized);
-        setCurrentPage(0); // Reset to first page when loading new lot
-        return normalized;
+        setCurrentPage(0);
       }
-      return [];
+    } catch (err) { setError('Erreur de chargement des billets');
+    } finally { setLoading(false); }
+  };
+
+  // Filtrage intelligent
+  const filteredBillets = useMemo(() => {
+    if (!selectedLotBillets) return [];
+    return selectedLotBillets.filter(billet => {
+      const searchLower = searchTerm.toLowerCase();
+      const matchesSearch = billet.numero.toString().includes(searchLower) || 
+        `${billet.nom_membre} ${billet.prenom_membre}`.toLowerCase().includes(searchLower);
+      
+      const bNorm = normalizeStatus(billet.statut);
+      const fNorm = normalizeStatus(statusFilter);
+      const matchesStatus = !statusFilter || bNorm.includes(fNorm);
+      
+      return matchesSearch && matchesStatus;
+    });
+  }, [selectedLotBillets, searchTerm, statusFilter]);
+
+  const currentBillets = useMemo(() => {
+    const startIndex = currentPage * itemsPerPage;
+    return filteredBillets.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredBillets, currentPage, itemsPerPage]);
+
+  const totalPages = Math.ceil(filteredBillets.length / itemsPerPage);
+
+  const handleUpdateBillet = async (billetId: string, payload: any) => {
+    try {
+      const resp = await fetch(`${import.meta.env.VITE_BACKEND_URL}/billets/update/${billetId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!resp.ok) throw new Error('Erreur mise à jour');
+      const updated = await resp.json();
+      
+      // Mise à jour locale de l'état
+      setSelectedLotBillets(prev => prev ? prev.map(b => b.billet_id === billetId ? { ...b, ...updated } : b) : null);
+      setEditingBilletId(null);
+      setEditingMemberInput('');
     } catch (err) {
-      console.error(err);
-      setSelectedLotBillets([]);
-      return [];
+      alert("Erreur lors de la modification");
     }
   };
 
   const handleGenerateLot = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedActivity) return;
+    setLoading(true);
     try {
-      setLoading(true);
-      if (currentLotToGenerate) {
-        // Générer billets pour un lot existant
-        const generateResponse = await fetch(`${import.meta.env.VITE_BACKEND_URL}/lot_billet/generate`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            lot_billet_id: currentLotToGenerate.lot_billet_id,
-            prix_unitaire: lotForm.prix_unitaire,
-          }),
-        });
-        if (!generateResponse.ok) throw new Error('Erreur lors de la génération des billets');
+      let lotId = currentLotToGenerate?.lot_billet_id;
 
-        await fetchAllLots();
-        await fetchLotsForActivity(selectedActivity.id);
-        setLotForm({ nom_lot_billet: '', description: '', prix_unitaire: 0, numero_debut: 1, numero_fin: 100 });
-        setCurrentLotToGenerate(null);
-        setShowLotModal(false);
-      } else {
+      if (!currentLotToGenerate) {
         const lotResponse = await fetch(`${import.meta.env.VITE_BACKEND_URL}/lot_billet/add`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            activite_id: selectedActivity.id,
-            nom_lot_billet: lotForm.nom_lot_billet,
-            description: lotForm.description,
-            numero_debut: lotForm.numero_debut,
-            numero_fin: lotForm.numero_fin,
-          }),
+          body: JSON.stringify({ ...lotForm, activite_id: selectedActivity.id }),
         });
-        if (!lotResponse.ok) throw new Error('Erreur lors de la création du lot');
         const newLot = await lotResponse.json();
-
-        // Générer les billets
-        const generateResponse = await fetch(`${import.meta.env.VITE_BACKEND_URL}/lot_billet/generate`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            lot_billet_id: newLot.lot_billet_id,
-            prix_unitaire: lotForm.prix_unitaire,
-          }),
-        });
-        if (!generateResponse.ok) throw new Error('Erreur lors de la génération des billets');
-
-        await fetchAllLots();
-        fetchLotsForActivity(selectedActivity.id);
-        setLotForm({ nom_lot_billet: '', description: '', prix_unitaire: 0, numero_debut: 1, numero_fin: 100 });
-        setShowLotModal(false);
+        lotId = newLot.lot_billet_id;
       }
+
+      await fetch(`${import.meta.env.VITE_BACKEND_URL}/lot_billet/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lot_billet_id: lotId, prix_unitaire: lotForm.prix_unitaire }),
+      });
+
+      await fetchAllLots();
+      fetchLotsForActivity(selectedActivity.id);
+      setShowLotModal(false);
+      setCurrentLotToGenerate(null);
+      setLotForm({ nom_lot_billet: '', description: '', prix_unitaire: 0, numero_debut: 1, numero_fin: 100 });
     } catch (err) {
-      setError('Erreur lors de la génération du lot et des billets');
-      console.error(err);
+      setError('Erreur lors de la génération');
     } finally {
       setLoading(false);
     }
   };
 
-  const activitiesWithLots = activities;
-
   return (
-    <div className="min-h-screen bg-linear-to from-slate-50 to-slate-100 pt-20">
+    <div className="min-h-screen bg-slate-50 pt-10 px-4 pb-20">
       <div className="max-w-6xl mx-auto">
         <div className="mb-8">
-          <h1 className="text-4xl font-bold text-slate-900 mb-2">Billets</h1>
-          <p className="text-slate-600">Gérez les billets par activité</p>
+          <h1 className="text-3xl font-bold text-slate-900">Gestion des Billets</h1>
+          <p className="text-slate-600">Suivi des ventes et assignations par activité</p>
         </div>
 
-        {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg">
-            {error}
-          </div>
-        )}
+        {error && <div className="mb-4 p-4 bg-red-100 text-red-700 rounded-lg">{error}</div>}
 
         {!selectedActivity ? (
-          <div>
-            <h2 className="text-2xl font-semibold mb-4">Choisissez une activité</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {activitiesWithLots.map(activity => (
-                <div
-                  key={activity.id}
-                  onClick={() => {
-                    setSelectedActivity(activity);
-                    fetchLotsForActivity(activity.id);
-                  }}
-                  className="bg-white p-6 border-b-blue-800 border-b-8 rounded-lg shadow-md hover:shadow-lg transition cursor-pointer"
-                >
-                  <h3 className="text-xl font-semibold">{activity.nom}</h3>
-                  <p className="text-slate-600">{activity.description}</p>
-                  <p className="text-sm text-slate-500">{new Date(activity.date_activite).toLocaleDateString()}</p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {activities.map(activity => (
+              <div
+                key={activity.id}
+                onClick={() => { setSelectedActivity(activity); fetchLotsForActivity(activity.id); }}
+                className="bg-white p-6 rounded-xl shadow-sm border-b-4 border-blue-600 hover:shadow-md transition-all cursor-pointer"
+              >
+                <h3 className="text-xl font-bold mb-2">{activity.nom}</h3>
+                <p className="text-slate-500 text-sm mb-4 line-clamp-2">{activity.description}</p>
+                <div className="text-xs font-semibold text-slate-400">
+                  {new Date(activity.date_activite).toLocaleDateString('fr-FR', { dateStyle: 'long' })}
                 </div>
-              ))}
-            </div>
+              </div>
+            ))}
           </div>
         ) : (
           <div>
-            <button
-              onClick={() => setSelectedActivity(null)}
-              className="mb-4 px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 flex items-center gap-2"
-              title="Retour aux activités"
-            >
-              <ArrowLeft className="w-4 h-4" />
-            </button>
-            <h2 className="text-2xl font-semibold mb-4">Activité : {selectedActivity.nom}</h2>
-
-            <div>
-              <h3 className="text-xl font-semibold mb-4">Lots de billets et leurs billets</h3>
-              {selectedLot ? (
-                <div>
-                  <button
-                    onClick={() => setSelectedLot(null)}
-                    className="mb-4 px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 flex items-center gap-2"
-                    title="Retour aux lots"
-                  >
-                    <ArrowLeft className="w-4 h-4" />
-                  </button>
-                  <h4 className="text-lg font-semibold mb-2">{selectedLot.nom_lot_billet}</h4>
-                  <p className="text-slate-600 mb-4">{selectedLot.description}</p>
-                  <div>
-                    <h5 className="text-md font-medium mb-2">Billets du lot</h5>
-                    
-                    {/* Search Bar */}
-                    {selectedLotBillets && selectedLotBillets.length > 0 && (
-                      <div className="mb-4 flex items-center gap-4">
-                        <div className="relative flex-1 max-w-md">
-                          <input
-                            type="text"
-                            placeholder="Rechercher par numéro ou nom du membre..."
-                            value={searchTerm}
-                            onChange={(e) => {
-                              setSearchTerm(e.target.value);
-                              setCurrentPage(0); // Reset to first page when searching
-                            }}
-                            className="w-full px-4 py-2 pl-10 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          />
-                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <svg className="h-5 w-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                            </svg>
-                          </div>
-                        </div>
-                        
-                        {/* Status Filter */}
-                        <div className="flex items-center gap-2">
-                          <label htmlFor="statusFilter" className="text-sm text-slate-600">Statut:</label>
-                          <select
-                            id="statusFilter"
-                            value={statusFilter}
-                            onChange={(e) => {
-                              setStatusFilter(e.target.value);
-                              setCurrentPage(0); // Reset to first page when filtering
-                            }}
-                            className="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                          >
-                            <option value="">Tous les statuts</option>
-                            <option value="disponible">Disponible</option>
-                            <option value="Assigné">Assigné</option>
-                            <option value="Payé">Payé</option>
-                          </select>
-                        </div>
-                        
-                        {(searchTerm || statusFilter) && (
-                          <button
-                            onClick={() => {
-                              setSearchTerm('');
-                              setStatusFilter('');
-                              setCurrentPage(0);
-                            }}
-                            className="px-3 py-2 text-slate-600 hover:text-slate-800"
-                          >
-                            ✕ Effacer filtres
-                          </button>
-                        )}
-                      </div>
-                    )}
-                    
-                    {selectedLotBillets === null ? (
-                      <p className="text-slate-500">Chargement...</p>
-                    ) : getFilteredBillets().length === 0 ? (
-                      <p className="text-slate-500">
-                        {searchTerm || statusFilter ? 
-                          `Aucun billet trouvé pour les filtres appliqués${searchTerm ? ` (recherche: "${searchTerm}")` : ''}${statusFilter ? ` (statut: ${statusFilter})` : ''}` 
-                          : 'Aucun billet pour ce lot'
-                        }
-                      </p>
-                    ) : (
-                      <div className="overflow-x-auto">
-                        <table className="w-full">
-                          <thead className="bg-slate-50">
-                            <tr>
-                              <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase tracking-wider w-12">Numéro</th>
-                              <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase tracking-wider w-full">Membre</th>
-                              <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Statut</th>
-                              <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Prix</th>
-                            </tr>
-                          </thead>
-                          <tbody className="bg-white divide-y divide-slate-200">
-                            {getCurrentPageBillets().map(billet => (
-                              <tr key={billet.billet_id}>
-                                <td className="px-4 py-2 whitespace-nowrap text-sm font-medium text-slate-900 text-center w-12">{billet.numero}</td>
-                                <td
-                                  className="px-4 py-2 whitespace-nowrap text-sm text-slate-500 cursor-pointer"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (editingBilletId !== billet.billet_id) {
-                                      setEditingBilletId(billet.billet_id);
-                                      setEditingMemberInput(`${billet.nom_membre || ''} ${billet.prenom_membre || ''}`);
-                                    }
-                                  }}
-                                >
-                                  <div className="flex items-center gap-2">
-                                    <div className="flex flex-col">
-                                      <div className="font-medium text-slate-900 truncate">{billet.nom_membre} {billet.prenom_membre}</div>
-                                      {/* show contact if available from members list */}
-                                      {(() => {
-                                        const assigned = members.find(m => String(m.membre_id) === String(billet.membre_id));
-                                        if (assigned && assigned.contact_membre) {
-                                          return <div className="text-xs text-slate-500 truncate">{assigned.contact_membre}</div>;
-                                        }
-                                        return null;
-                                      })()}
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                      {editingBilletId === billet.billet_id ? (
-                                    <div className="flex items-center gap-2 w-full">
-                                        <div className="relative flex-1">
-                                          <input
-                                            autoFocus
-                                            value={editingMemberInput}
-                                            onChange={(e) => setEditingMemberInput(e.target.value)}
-                                            onKeyDown={async (e) => {
-                                              if (e.key === 'Enter') {
-                                                e.preventDefault();
-                                                const typed = editingMemberInput.trim().toLowerCase();
-                                                const matched = members.find(m => `${m.nom_membre} ${m.prenom_membre}`.toLowerCase().includes(typed));
-                                                if (!matched) { alert('Membre non trouvé'); return; }
-                                                const existing = selectedLotBillets!.find(b => b.membre_id === matched.membre_id && b.billet_id !== billet.billet_id);
-                                                if (existing) {
-                                                  const ok = window.confirm(`Le membre ${matched.nom_membre} ${matched.prenom_membre} est déjà assigné au billet n°${existing.numero}. Continuer ?`);
-                                                  if (!ok) return;
-                                                }
-                                                try {
-                                                  const resp = await fetch(`${import.meta.env.VITE_BACKEND_URL}/billets/update/${billet.billet_id}`, {
-                                                    method: 'PUT', headers: { 'Content-Type': 'application/json' },
-                                                    body: JSON.stringify({ membre_id: matched.membre_id, statut: 'Assigné' })
-                                                  });
-                                                  if (!resp.ok) throw new Error('Erreur mise à jour billet');
-                                                  const updated = await resp.json();
-                                                  const normalizedUpdated = {
-                                                    ...updated,
-                                                    statut: updated.statut ? String(updated.statut).trim() : updated.statut
-                                                  };
-                                                  setSelectedLotBillets(prev => prev!.map(b => b.billet_id === updated.billet_id ? ({ ...b, ...normalizedUpdated }) : b));
-                                                  setEditingBilletId(null); setEditingMemberInput('');
-                                                } catch (err) { console.error(err); }
-                                              }
-                                            }}
-                                            className="w-2xl h-10 px-3 py-2 box-border text-sm border rounded"
-                                          />
-                                          {/* Suggestions */}
-                                          {editingMemberInput.trim().length > 0 && (
-                                            <ul className="absolute left-0 right-0 mt-1 max-h-40 overflow-auto bg-white border rounded shadow z-50">
-                                              {members.filter(m => `${m.nom_membre} ${m.prenom_membre}`.toLowerCase().includes(editingMemberInput.trim().toLowerCase())).slice(0,8).map(m => (
-                                                <li
-                                                  key={m.membre_id}
-                                                  onClick={async (e) => {
-                                                    e.stopPropagation();
-                                                          // confirm if member already has a billet in this lot
-                                                          // const existing = selectedLotBillets!.find(b => b.membre_id === m.membre_id && b.billet_id !== billet.billet_id);
-                                                          // if (existing) {
-                                                          //   const ok = window.confirm(`Le membre ${m.nom_membre} ${m.prenom_membre} est déjà assigné au billet n°${existing.numero}. Continuer ?`);
-                                                          //   if (!ok) return;
-                                                          // }
-                                                          try {
-                                                            const resp = await fetch(`${import.meta.env.VITE_BACKEND_URL}/billets/update/${billet.billet_id}`, {
-                                                              method: 'PUT', headers: { 'Content-Type': 'application/json' },
-                                                              body: JSON.stringify({ membre_id: m.membre_id, statut: 'Assigné' })
-                                                            });
-                                                            if (!resp.ok) throw new Error('Erreur mise à jour billet');
-                                                            const updated = await resp.json();
-                                                            const normalizedUpdated = {
-                                                              ...updated,
-                                                              statut: updated.statut ? String(updated.statut).trim() : updated.statut
-                                                            };
-                                                            setSelectedLotBillets(prev => prev!.map(b => b.billet_id === updated.billet_id ? ({ ...b, ...normalizedUpdated }) : b));
-                                                            setEditingBilletId(null); setEditingMemberInput('');
-                                                          } catch (err) { console.error(err); }
-                                                  }}
-                                                  className="px-3 py-2 hover:bg-slate-100 cursor-pointer"
-                                                >
-                                                  {m.nom_membre} {m.prenom_membre}
-                                                </li>
-                                              ))}
-                                            </ul>
-                                          )}
-                                        </div>
-                                        <button 
-                                          onClick={(e) => { e.stopPropagation(); setEditingBilletId(null); setEditingMemberInput(''); }} 
-                                          className="p-1 text-slate-400 hover:text-slate-600 transition-colors"
-                                          title="Annuler"
-                                        >
-                                          <X className="w-5 h-5" />
-                                        </button>
-                                    </div>
-                                      ) : billet.membre_id ? (
-                                        // Assigné: afficher juste le bouton modifier
-                                        <div className="cursor-pointer flex items-center justify-center px-2 py-1 rounded hover:bg-slate-50">
-                                          <Edit className="w-4 h-4 text-slate-400 hover:text-slate-600" />
-                                        </div>
-                                      ) : (
-                                        // Non assigné: zone vide clickable
-                                        <div className="cursor-pointer w-full px-2 py-1 rounded hover:bg-slate-50 text-slate-400 text-sm">
-                                          Cliquez pour assigner
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
-                                </td>
-                                <td className="px-4 py-2 whitespace-nowrap text-sm text-slate-500 w-full">
-                                  <div className="flex items-center gap-2">
-                                    <span className={`px-2 py-1 rounded text-xs font-medium ${normalizeStatus(billet.statut).includes('pay') ? 'bg-green-100 text-green-800' : normalizeStatus(billet.statut).includes('assign') ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-800'}`}>
-                                      {billet.statut}
-                                    </span>
-                                    <button
-                                      onClick={async (e) => {
-                                        e.stopPropagation();
-                                        try {
-                                          const resp = await fetch(`${import.meta.env.VITE_BACKEND_URL}/billets/update/${billet.billet_id}`, {
-                                            method: 'PUT',
-                                            headers: { 'Content-Type': 'application/json' },
-                                            body: JSON.stringify({ statut: 'Payé' })
-                                          });
-                                          if (!resp.ok) throw new Error('Erreur mise à jour statut');
-                                          const updated = await resp.json();
-                                          const normalizedUpdated = {
-                                            ...updated,
-                                            statut: updated.statut ? String(updated.statut).trim() : updated.statut
-                                          };
-                                          setSelectedLotBillets(prev => prev!.map(b => b.billet_id === updated.billet_id ? ({ ...b, ...normalizedUpdated }) : b));
-                                        } catch (err) {
-                                          console.error(err);
-                                        }
-                                      }}
-                                      className="px-2 py-1 bg-blue-600 text-white rounded text-xs"
-                                    >
-                                      <Check className="w-4 h-4" />
-                                    </button>
-                                  </div>
-                                </td>
-                                <td className="px-4 py-2 whitespace-nowrap text-sm text-slate-500">{billet.prix_unitaire} MGA</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-
-                    {/* Pagination Controls */}
-                    {getFilteredBillets().length > 0 && (
-                      <div className="mt-4 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <label htmlFor="itemsPerPage" className="text-sm text-slate-600">Billets par page:</label>
-                          <input
-                            id="itemsPerPage"
-                            type="number"
-                            min="1"
-                            max="100"
-                            value={itemsPerPage}
-                            onChange={(e) => {
-                              const value = parseInt(e.target.value) || 10;
-                              setItemsPerPage(value);
-                              setCurrentPage(0); // Reset to first page
-                            }}
-                            className="w-16 px-2 py-1 border border-slate-300 rounded text-sm"
-                          />
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm text-slate-600">
-                            Page {currentPage + 1} sur {totalPages} ({getFilteredBillets().length} billet{getFilteredBillets().length > 1 ? 's' : ''})
-                          </span>
-                          <button
-                            onClick={() => setCurrentPage(prev => Math.max(0, prev - 1))}
-                            disabled={currentPage === 0}
-                            className="px-3 py-1 bg-slate-200 text-slate-800 rounded hover:bg-slate-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            ‹ Précédent
-                          </button>
-                          <button
-                            onClick={() => setCurrentPage(prev => Math.min(totalPages - 1, prev + 1))}
-                            disabled={currentPage >= totalPages - 1}
-                            className="px-3 py-1 bg-slate-200 text-slate-800 rounded hover:bg-slate-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            Suivant ›
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ) : lots.length === 0 ? (
-                <div className="text-center py-8">
-                  <p className="text-slate-600 mb-4">Aucun lot de billets pour cette activité</p>
-                  <button
-                    onClick={() => { setCurrentLotToGenerate(null); setShowLotModal(true); }}
-                    className="px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 flex items-center gap-2"
-                    title="Générer un lot de billets"
-                  >
-                    <Zap className="w-5 h-5" />
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-6">
-                  {lots.map(lot => {
-                    const lotBillets = billets.filter(b => b.lot_billet_id === lot.lot_billet_id);
-                    return (
-                      <div key={lot.lot_billet_id} className="bg-white p-6 rounded-lg shadow-md cursor-pointer" onClick={() => { setSelectedLot(lot); fetchBilletsByLot(lot.lot_billet_id); }}>
-                        <div className="mb-4">
-                          <h4 className="text-lg font-semibold">{lot.nom_lot_billet}</h4>
-                          <p className="text-slate-600">{lot.description}</p>
-                          <p className="text-sm text-slate-500">Numéros: {lot.numero_debut} - {lot.numero_fin}</p>
-                          <div className="mt-3 flex gap-2">
-                            {/* Prevent showing generate button if billets already exist for this lot */}
-                            {lotBillets.length === 0 && (
-                              <button
-                                onClick={(e) => { e.stopPropagation(); setCurrentLotToGenerate(lot); setShowLotModal(true); }}
-                                className="px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm flex items-center gap-2"
-                                title="Générer billets"
-                              >
-                                <Zap className="w-4 h-4" />
-                              </button>
-                            )}
-                            {lotBillets.length > 0 && (
-                              <button
-                                onClick={(e) => { e.stopPropagation(); setSelectedLot(lot); fetchBilletsByLot(lot.lot_billet_id); }}
-                                className="px-3 py-2 bg-slate-200 text-slate-800 rounded-md hover:bg-slate-300 text-sm flex items-center gap-2"
-                                title="Voir billets"
-                              >
-                                <Eye className="w-4 h-4" />
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                        <p className="text-sm text-slate-500 mt-2">{lotBillets.length} billet(s) associés</p>
-                      </div>
-                    );
-                  })}
-                  <div
-                    onClick={() => { setCurrentLotToGenerate(null); setShowLotModal(true); }}
-                    className="bg-slate-100 p-6 rounded-lg shadow-md hover:shadow-lg transition cursor-pointer flex items-center justify-center"
-                  >
-                    <Plus className="w-8 h-8 text-slate-600" />
-                    <span className="ml-2 text-slate-600">Nouveau lot</span>
-                  </div>
-                </div>
-              )}
+            <div className="flex items-center gap-4 mb-6">
+              <button
+                onClick={() => { setSelectedActivity(null); setSelectedLot(null); }}
+                className="p-2 bg-white rounded-full shadow-sm hover:bg-slate-100 transition"
+              >
+                <ArrowLeft className="w-5 h-5 text-slate-600" />
+              </button>
+              <h2 className="text-2xl font-bold text-slate-800">{selectedActivity.nom}</h2>
             </div>
+
+            {selectedLot ? (
+              <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div className="p-6 border-b border-slate-100">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                      <h3 className="text-lg font-bold">{selectedLot.nom_lot_billet}</h3>
+                      <p className="text-sm text-slate-500">{selectedLot.description}</p>
+                    </div>
+                    <button 
+                        onClick={() => setSelectedLot(null)}
+                        className="text-sm text-blue-600 font-medium hover:underline"
+                    >
+                        Changer de lot
+                    </button>
+                  </div>
+
+                  {/* Filtres */}
+                  <div className="mt-6 flex flex-wrap gap-3">
+                    <div className="relative flex-1 min-w-[250px]">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                      <input 
+                        type="text"
+                        placeholder="N° ou Nom du membre..."
+                        className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                      />
+                    </div>
+                    <select 
+                      className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none"
+                      value={statusFilter}
+                      onChange={(e) => setStatusFilter(e.target.value)}
+                    >
+                      <option value="">Tous les statuts</option>
+                      <option value="Disponible">Disponible</option>
+                      <option value="Assigné">Assigné</option>
+                      <option value="Payé">Payé</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Liste des billets */}
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
+                      <tr>
+                        <th className="px-4 py-4 sm:px-6 font-semibold text-left">N°</th>
+                        <th className="px-4 py-4 sm:px-6 font-semibold text-left">Membre / Assigné</th>
+                        <th className="px-4 py-4 sm:px-6 font-semibold text-left">Statut</th>
+                        <th className="px-4 py-4 sm:px-6 font-semibold text-left">Prix</th>
+                        <th className="px-4 py-4 sm:px-6 font-semibold text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {currentBillets.map(billet => (
+                        <tr key={billet.billet_id} className="hover:bg-slate-50/50 transition">
+                          <td className="px-4 py-4 sm:px-6 font-bold text-slate-700">#{billet.numero}</td>
+                          <td className="px-4 py-4 sm:px-6 relative">
+                            {editingBilletId === billet.billet_id ? (
+                              <div className="flex items-center gap-2">
+                                <div className="relative flex-1">
+                                  <input 
+                                    autoFocus
+                                    className="w-full px-3 py-1 border border-blue-500 rounded outline-none text-sm"
+                                    value={editingMemberInput}
+                                    onChange={(e) => setEditingMemberInput(e.target.value)}
+                                    placeholder="Chercher un membre..."
+                                  />
+                                  {editingMemberInput.length > 0 && (
+                                    <div className="absolute z-50 w-full mt-1 bg-white shadow-xl border rounded-md max-h-48 overflow-y-auto">
+                                      {members.filter(m => `${m.nom_membre} ${m.prenom_membre}`.toLowerCase().includes(editingMemberInput.toLowerCase()))
+                                        .map(m => (
+                                          <div 
+                                            key={m.membre_id}
+                                            className="px-3 py-2 hover:bg-blue-50 cursor-pointer text-sm"
+                                            onClick={() => handleUpdateBillet(billet.billet_id, { membre_id: m.membre_id, statut: 'Assigné' })}
+                                          >
+                                            {m.nom_membre} {m.prenom_membre}
+                                          </div>
+                                        ))
+                                      }
+                                    </div>
+                                  )}
+                                </div>
+                                <button onClick={() => setEditingBilletId(null)}><X className="w-4 h-4 text-slate-400" /></button>
+                              </div>
+                            ) : (
+                              <div 
+                                className="group flex items-center gap-2 cursor-pointer"
+                                onClick={() => { setEditingBilletId(billet.billet_id); setEditingMemberInput(billet.nom_membre || ''); }}
+                              >
+                                <span className={billet.nom_membre ? "text-slate-900" : "text-slate-300 italic"}>
+                                  {billet.nom_membre ? `${billet.nom_membre} ${billet.prenom_membre}` : "Non assigné"}
+                                </span>
+                                <Edit className="w-3 h-3 text-blue-500 opacity-0 group-hover:opacity-100 transition" />
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-4 sm:px-6">
+                            <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                              billet.statut === 'Payé' ? 'bg-green-100 text-green-700' : 
+                              billet.statut === 'Assigné' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'
+                            }`}>
+                              {billet.statut}
+                            </span>
+                          </td>
+                          <td className="px-4 py-4 sm:px-6 text-sm text-slate-600">{billet.prix_unitaire} MGA</td>
+                          <td className="px-4 py-4 sm:px-6 text-right">
+                            {billet.statut !== 'Payé' && (
+                              <button 
+                                onClick={() => handleUpdateBillet(billet.billet_id, { statut: 'Payé' })}
+                                className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition shadow-sm"
+                                title="Marquer comme payé"
+                              >
+                                <Check className="w-4 h-4" />
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Pagination */}
+                <div className="p-4 bg-slate-50 border-t flex items-center justify-between">
+                  <span className="text-sm text-slate-500">Page {currentPage + 1} / {totalPages || 1}</span>
+                  <div className="flex gap-2">
+                    <button 
+                      disabled={currentPage === 0}
+                      onClick={() => setCurrentPage(p => p - 1)}
+                      className="px-4 py-2 bg-white border rounded-lg text-sm disabled:opacity-50"
+                    >
+                      Précédent
+                    </button>
+                    <button 
+                      disabled={currentPage >= totalPages - 1}
+                      onClick={() => setCurrentPage(p => p + 1)}
+                      className="px-4 py-2 bg-white border rounded-lg text-sm disabled:opacity-50"
+                    >
+                      Suivant
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {lots.map(lot => {
+                  const count = billets.filter(b => b.lot_billet_id === lot.lot_billet_id).length;
+                  return (
+                    <div key={lot.lot_billet_id} className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                      <h4 className="text-lg font-bold mb-1">{lot.nom_lot_billet}</h4>
+                      <p className="text-xs text-slate-400 mb-4 font-mono">Numéros {lot.numero_debut} à {lot.numero_fin}</p>
+                      
+                      {count === 0 ? (
+                        <button 
+                          onClick={() => { setCurrentLotToGenerate(lot); setShowLotModal(true); }}
+                          className="w-full flex items-center justify-center gap-2 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition font-medium text-sm"
+                        >
+                          <Zap className="w-4 h-4" /> Générer les billets
+                        </button>
+                      ) : (
+                        <button 
+                          onClick={() => { setSelectedLot(lot); fetchBilletsByLot(lot.lot_billet_id); }}
+                          className="w-full flex items-center justify-center gap-2 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition font-medium text-sm"
+                        >
+                          <Eye className="w-4 h-4" /> Voir les {count} billets
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+                <button 
+                  onClick={() => { setCurrentLotToGenerate(null); setShowLotModal(true); }}
+                  className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-slate-300 rounded-xl hover:bg-white hover:border-blue-400 transition-all group"
+                >
+                  <Plus className="w-8 h-8 text-slate-300 group-hover:text-blue-500 mb-2" />
+                  <span className="text-slate-400 group-hover:text-blue-600 font-medium">Nouveau lot</span>
+                </button>
+              </div>
+            )}
           </div>
         )}
 
+        {/* Modal Lot */}
         {showLotModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6">
-                <h3 className="text-lg font-semibold mb-4">{currentLotToGenerate ? `Générer billets pour "${currentLotToGenerate.nom_lot_billet}"` : 'Générer un lot de billets'}</h3>
-              <form onSubmit={handleGenerateLot}>
-                {currentLotToGenerate ? (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-[100]">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8">
+              <h3 className="text-xl font-bold mb-6">
+                {currentLotToGenerate ? `Initier "${currentLotToGenerate.nom_lot_billet}"` : "Créer un nouveau lot"}
+              </h3>
+              <form onSubmit={handleGenerateLot} className="space-y-4">
+                {!currentLotToGenerate && (
                   <>
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-slate-700">Prix unitaire (MGA)</label>
-                      <input
-                        type="number"
-                        value={lotForm.prix_unitaire}
-                        onChange={(e) => setLotForm({ ...lotForm, prix_unitaire: parseFloat(e.target.value) || 0 })}
-                        className="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    <div>
+                      <label className="block text-sm font-semibold mb-1">Nom du lot</label>
+                      <input 
                         required
-                      />
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-slate-700">Nom du lot</label>
-                      <input
-                        type="text"
+                        className="w-full px-4 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
                         value={lotForm.nom_lot_billet}
-                        onChange={(e) => setLotForm({ ...lotForm, nom_lot_billet: e.target.value })}
-                        className="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                        required
+                        onChange={e => setLotForm({...lotForm, nom_lot_billet: e.target.value})}
                       />
                     </div>
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-slate-700">Description</label>
-                      <textarea
-                        value={lotForm.description}
-                        onChange={(e) => setLotForm({ ...lotForm, description: e.target.value })}
-                        className="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                      />
-                    </div>
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-slate-700">Prix unitaire (MGA)</label>
-                      <input
-                        type="number"
-                        value={lotForm.prix_unitaire}
-                        onChange={(e) => setLotForm({ ...lotForm, prix_unitaire: parseFloat(e.target.value) || 0 })}
-                        className="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                        required
-                      />
-                    </div>
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-slate-700">Numéro de début</label>
-                      <input
-                        type="number"
-                        value={lotForm.numero_debut}
-                        onChange={(e) => setLotForm({ ...lotForm, numero_debut: parseInt(e.target.value) || 1 })}
-                        className="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                        required
-                      />
-                    </div>
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-slate-700">Numéro de fin</label>
-                      <input
-                        type="number"
-                        value={lotForm.numero_fin}
-                        onChange={(e) => setLotForm({ ...lotForm, numero_fin: parseInt(e.target.value) || 100 })}
-                        className="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                        required
-                      />
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold mb-1">Début n°</label>
+                        <input type="number" className="w-full px-4 py-2 border rounded-lg" value={lotForm.numero_debut} onChange={e => setLotForm({...lotForm, numero_debut: parseInt(e.target.value)})}/>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold mb-1">Fin n°</label>
+                        <input type="number" className="w-full px-4 py-2 border rounded-lg" value={lotForm.numero_fin} onChange={e => setLotForm({...lotForm, numero_fin: parseInt(e.target.value)})}/>
+                      </div>
                     </div>
                   </>
                 )}
-                <div className="flex justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => { setShowLotModal(false); setCurrentLotToGenerate(null); }}
-                    className="px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700"
+                <div>
+                  <label className="block text-sm font-semibold mb-1">Prix unitaire (MGA)</label>
+                  <input 
+                    type="number" required
+                    className="w-full px-4 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
+                    value={lotForm.prix_unitaire}
+                    onChange={e => setLotForm({...lotForm, prix_unitaire: parseFloat(e.target.value)})}
+                  />
+                </div>
+                <div className="flex gap-3 pt-4">
+                  <button 
+                    type="button" 
+                    onClick={() => setShowLotModal(false)}
+                    className="flex-1 py-2 bg-slate-100 text-slate-600 rounded-lg font-bold"
                   >
                     Annuler
                   </button>
-                  <button
+                  <button 
                     type="submit"
                     disabled={loading}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                    className="flex-1 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 disabled:opacity-50"
                   >
-                    {loading ? 'Génération...' : 'Générer'}
+                    {loading ? "Génération..." : "Confirmer"}
                   </button>
                 </div>
               </form>
             </div>
           </div>
         )}
-
       </div>
     </div>
   );

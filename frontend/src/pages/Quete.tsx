@@ -563,9 +563,9 @@ export default function Quete() {
               <tbody className="bg-white divide-y divide-slate-200">
                 {filteredQuetes.map((quete) => (
                   <tr key={quete.quete_id} className="hover:bg-slate-50 transition">
-                    <td className="px-6 py-4 text-sm text-slate-900">{quete.nom_donnateur}</td>
-                    <td className="px-6 py-4 text-sm text-slate-600">{formatDate(quete.date_quete)}</td>
-                    <td className="px-6 py-4 text-sm font-semibold text-green-600">{formatCurrency(typeof quete.montant_quete === 'string' ? parseFloat(quete.montant_quete) : quete.montant_quete  )}</td>
+                    <td className="px-4 py-4 sm:px-6 text-sm text-slate-900">{quete.nom_donnateur}</td>
+                    <td className="px-4 py-4 sm:px-6 text-sm text-slate-600">{formatDate(quete.date_quete)}</td>
+                    <td className="px-4 py-4 sm:px-6 text-sm font-semibold text-green-600">{formatCurrency(typeof quete.montant_quete === 'string' ? parseFloat(quete.montant_quete) : quete.montant_quete  )}</td>
                     <td className="px-6 py-4 text-sm text-slate-600">{quete.piece_justificatif}</td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end gap-2">
@@ -925,9 +925,9 @@ export default function Quete() {
                       return (name.includes(sansSearchTerm.toLowerCase()) || (sb.sans_billet_id || '').toLowerCase().includes(sansSearchTerm.toLowerCase()));
                     }).map(sb => (
                       <tr key={sb.sans_billet_id} className="hover:bg-slate-50 transition">
-                        <td className="px-6 py-4 text-sm text-slate-900">{(sb.nom_membre ? `${sb.nom_membre} ${sb.prenom_membre}` : sb.membre_id)}</td>
-                        <td className="px-6 py-4 text-sm text-slate-600">{new Date(sb.date_don).toLocaleDateString('fr-FR')}</td>
-                        <td className="px-6 py-4 text-sm font-semibold text-green-600">{formatCurrency(typeof sb.montant === 'string' ? parseFloat(sb.montant) : sb.montant)}</td>
+                        <td className="px-4 py-4 sm:px-6 text-sm text-slate-900">{(sb.nom_membre ? `${sb.nom_membre} ${sb.prenom_membre}` : sb.membre_id)}</td>
+                        <td className="px-4 py-4 sm:px-6 text-sm text-slate-600">{new Date(sb.date_don).toLocaleDateString('fr-FR')}</td>
+                        <td className="px-4 py-4 sm:px-6 text-sm font-semibold text-green-600">{formatCurrency(typeof sb.montant === 'string' ? parseFloat(sb.montant) : sb.montant)}</td>
                         <td className="px-6 py-4 text-right">
                           <div className="flex justify-end gap-2">
                             <button onClick={() => handleEditSans(sb)} className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg transition" title="Modifier"><Edit2 className="w-4 h-4" /></button>

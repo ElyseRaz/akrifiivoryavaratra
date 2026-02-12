@@ -341,7 +341,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className=" bg-gray-50 min-h-screen pl-80">
+    <div className="bg-gray-50 min-h-screen p-4 md:p-8">
       {/* En-tête */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
@@ -349,7 +349,7 @@ export default function Dashboard() {
       </div>
 
       {/* Cartes statistiques */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6 mb-8">
         {statCards.map((card, index) => (
           <div
             key={index}

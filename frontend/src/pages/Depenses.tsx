@@ -453,7 +453,7 @@ export default function Depenses() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
                       {formatCurrency(typeof depense.montant === 'string' ? parseFloat(depense.montant) : depense.montant)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <td className="px-4 py-4 sm:px-6 whitespace-nowrap text-sm font-medium">
                       <div className="flex space-x-2">
                         <button
                           onClick={() => handleViewDepense(depense)}
@@ -605,7 +605,9 @@ export default function Depenses() {
                     )}
                   </div>
                   <input
-                    ref={(el) => (fileInputRef.current = el)}
+                    ref={(el) => {
+                      if (el) fileInputRef.current = el;
+                    }}
                     type="file"
                     onChange={(e) => setFormData({ ...formData, piece_justificatif: e.target.files?.[0] || null })}
                     className="hidden"

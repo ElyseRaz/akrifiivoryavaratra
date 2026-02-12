@@ -1,9 +1,16 @@
 const Utilisateur = require('../models/utilisateurs.model');
+const bcrypt = require('bcryptjs');
 
 const getUtilisateurs = async (req: any, res: any) => {
     try {
         const utilisateurs = await Utilisateur.getAllUtilisateurs();
-        res.status(200).json(utilisateurs);
+        // Remove password before sending
+        const safe = utilisateurs.map((u: any) => {
+            const copy = { ...u };
+            delete copy.mot_de_passe;
+            return copy;
+        });
+        res.status(200).json(safe);
     }
     catch (error) {
         res.status(500).json({ error: 'Erreur serveur' });
@@ -13,7 +20,10 @@ const getUtilisateurs = async (req: any, res: any) => {
 const addUtilisateur = async (req: any, res: any) => {
     try {
         const newUtilisateur = await Utilisateur.addUtilisateur(req.body);
-        res.status(201).json(newUtilisateur);
+        // Do not return password
+        const safe = { ...newUtilisateur };
+        delete safe.mot_de_passe;
+        res.status(201).json(safe);
     }
     catch (error) {
         res.status(500).json({ error: 'Erreur serveur' });
@@ -24,7 +34,9 @@ const updateUtilisateur = async (req: any, res: any) => {
     try {
         const updatedUtilisateur = await Utilisateur.updateUtilisateur(req.params.id, req.body);
         if (updatedUtilisateur) {
-            res.status(200).json(updatedUtilisateur);
+            const safe = { ...updatedUtilisateur };
+            delete safe.mot_de_passe;
+            res.status(200).json(safe);
         }
         else {
             res.status(404).json({ error: 'Utilisateur non trouvé' });
@@ -57,9 +69,15 @@ const loginUtilisateur = async (req: any, res: any) => {
             return res.status(400).json({ error: 'Email et mot de passe requis' });
         }
         const utilisateur = await Utilisateur.getUtilisateurByEmail(email);
-        if (!utilisateur || utilisateur.mot_de_passe !== mot_de_passe) {
+        if (!utilisateur) {
             return res.status(401).json({ error: 'Identifiants invalides' });
         }
+
+        const match = await bcrypt.compare(mot_de_passe, utilisateur.mot_de_passe);
+        if (!match) {
+            return res.status(401).json({ error: 'Identifiants invalides' });
+        }
+
         // Générer un token JWT
         const token = jwt.sign(
             { id: utilisateur.id, nom_utilisateur: utilisateur.nom_utilisateur, email: utilisateur.email, role: utilisateur.role },

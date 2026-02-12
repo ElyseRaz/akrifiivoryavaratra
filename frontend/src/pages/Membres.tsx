@@ -223,7 +223,7 @@ export default function Membres() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
                       {member.membre_id}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
+                    <td className="px-4 py-4 sm:px-6 whitespace-nowrap text-sm font-medium text-slate-900">
                       {member.nom_membre}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
@@ -232,7 +232,7 @@ export default function Membres() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
                       {member.contact}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <td className="px-4 py-4 sm:px-6 whitespace-nowrap text-sm font-medium">
                       <div className="flex space-x-2">
                         <button
                           onClick={() => handleEditMember(member)}
