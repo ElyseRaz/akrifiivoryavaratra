@@ -4,7 +4,9 @@
   "description": "",
   "main": "index.ts",
   "scripts": {
-    "start": "nodemon index.ts",
+    "start": "node dist/index.js",
+    "dev": "nodemon index.ts",
+    "build": "tsc",
     "create-user": "ts-node scripts/createUser.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -12,6 +14,9 @@
   "author": "",
   "license": "ISC",
   "type": "commonjs",
+  "engines": {
+    "node": "18.x || 20.x"
+  },
   "dependencies": {
     "@types/bcryptjs": "^2.4.6",
     "@types/express-session": "^1.18.2",

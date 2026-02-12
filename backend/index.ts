@@ -30,7 +30,7 @@ app.use('/api/sans_billets', sansBilletRouter);
 app.use('/api/utilisateurs', utilisateursRouter);
 app.use('/api/user', userSettingsRouter);
 
-app.listen(5000, () => {
-  console.log("Server running on http://localhost:5000");
-  console.log("Swagger docs available at http://localhost:5000/api-docs");
+app.listen(port, () => {
+  console.log(`Server running on port ${port}`);
+  console.log(`Swagger docs available at http://localhost:${port}/api-docs`);
 });
